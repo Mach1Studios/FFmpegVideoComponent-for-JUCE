@@ -153,6 +153,8 @@ private:
     /*! returns pointer to the audio codec context. */
     AVCodecContext* getAudioContext () const;
     
+    juce::WaitableEvent threadStartedEvent;
+    
     /*! reads and decodes av packets*/
     int readAndDecodePacket();
     

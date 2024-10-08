@@ -209,6 +209,9 @@ juce::File FFmpegMediaDecodeThread::getMediaFile () const
 
 void FFmpegMediaDecodeThread::run()
 {
+    decodingIsPaused = false; // Initialize as not paused
+    threadStartedEvent.signal(); // Signal that the thread has started
+    
     unsigned long newFramesCount = 0;   //frames in buffer ready to read
     bool bufferingStopped = false;      //keeps track if buffers are full, for debug use only
 
@@ -227,12 +230,13 @@ void FFmpegMediaDecodeThread::run()
             //pause decoding and signal that it has stopped
             //DBG("\tDecoding paused...");
             decodingIsPaused = true;
-            waitForDecodingToPause.signal();
+            waitForDecodingToPause.signal(); // Signal that decoding is paused
             //wait until continue signal
             //DBG("Wait until thread is continued...");
             waitUntilContinue.reset();
             waitUntilContinue.wait(-1);
             //DBG("\tDecoding continued...");
+            decodingIsPaused = false; // Will resume decoding
         }
         if (!decodingIsPaused)
         {
@@ -240,8 +244,7 @@ void FFmpegMediaDecodeThread::run()
             newFramesCount = videoFramesFifo.countNewFrames();
             
             //if there is enough space in audio and video fifo and the audio fifo does not have too many samples not read already
-            if ( (audioFifo.getFreeSpace() > 2048
-                && (audioFifo.getNumReady() < 192000 //this 4*48000 => 4 seconds audio at 48kHz
+            if ( (audioFifo.getFreeSpace() > 2048 && (audioFifo.getNumReady() < 192000 //this 4*48000 => 4 seconds audio at 48kHz
                 && newFramesCount < videoFramesFifo.getSize() - 2) ) ) //-2 because this is a fifo
             {
                 //since frames come in groups of successive audio frames OR video frames, we need to buffer at least one
@@ -519,11 +522,10 @@ void FFmpegMediaDecodeThread::pauseDecoding()
     if (/*!decodingShouldPause &&*/ isThreadRunning())
     {
         decodingShouldPause = true;
-        //wait until thread has paused
-        if ( !decodingIsPaused )
+        // Wait until thread has paused
+        if (!decodingIsPaused)
         {
             waitForDecodingToPause.reset();
-//            DBG("Wait for decoding thread to pause...");
             waitForDecodingToPause.wait(-1);
         }
     }
@@ -576,16 +578,22 @@ void FFmpegMediaDecodeThread::setPositionSeconds (const double newPositionSecond
         //start thread if it is seeked for the first time
         if(!isThreadRunning())
         {
-//            DBG("starting decoding thread.");
+            //DBG("starting decoding thread.");
             startThread();
-            
-            //let thread run for a while to see if data arrives
-            waitForFirstData.reset();
-            waitForFirstData.wait(-1);
+            threadStartedEvent.reset();
+            threadStartedEvent.wait(-1); // Wait for thread to start
+            // No need to pause immediately; proceed to seek
         }
         
-        //pause the decoding process safely, so it can finish the current decoding cycle
+        // Pause decoding process if thread was already running
         pauseDecoding();
+        
+        // Wait until decoding thread has paused
+        if (!decodingIsPaused)
+        {
+            waitForDecodingToPause.reset();
+            waitForDecodingToPause.wait(-1);
+        } 
         
         //reset thread data about gathered data
         countVideoFrames = 0;

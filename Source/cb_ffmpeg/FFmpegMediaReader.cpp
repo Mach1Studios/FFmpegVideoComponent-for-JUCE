@@ -32,6 +32,12 @@ int FFmpegMediaReader::loadMediaFile (const juce::File& inputFile)
             videoListeners.call(&FFmpegVideoListener::videoSizeChanged, getVideoWidth(),
                                 getVideoHeight(), getPixelFormat()/*videoContext->pix_fmt*/);
         }
+        else
+        {
+            // Notify listeners to clear any video frames
+            videoListeners.call(&FFmpegVideoListener::videoFileChanged, inputFile);
+            videoListeners.call(&FFmpegVideoListener::videoSizeChanged, 0, 0, AV_PIX_FMT_NONE);
+        }
         return true;
     }
     return false;
@@ -68,7 +74,7 @@ void FFmpegMediaReader::releaseResources ()
 void FFmpegMediaReader::getNextAudioBlock (const juce::AudioSourceChannelInfo &bufferToFill)
 {
     // return if samplerate is invalid
-    if (getSampleRate() <= 0)
+    if (getSampleRate() <= 0 || getNumberOfAudioChannels() <= 0)
     {
         bufferToFill.clearActiveBufferRegion();
         nextReadPos += bufferToFill.numSamples;

@@ -38,13 +38,13 @@ int FFmpegMediaDecodeThread::openCodecContext (AVCodecContext** codecContext,
                       bool refCounted)
 {
     //find best stream for media type
-    int id = av_find_best_stream (formatContext, mediaType, -1, -1, NULL, 0);
+    int id = av_find_best_stream (formatContext, mediaType, -1, -1, nullptr, 0);
 
     //if stream index is valid
     if (juce::isPositiveAndBelow(id, static_cast<int> (formatContext->nb_streams)))
     {
-        const AVCodec *codec = NULL;
-        AVDictionary *opts = NULL;
+        const AVCodec *codec = nullptr;
+        AVDictionary *opts = nullptr;
         AVStream* stream = formatContext->streams [id];
         // find decoder for the stream
         codec = avcodec_find_decoder(stream->codecpar->codec_id);
@@ -88,14 +88,12 @@ int FFmpegMediaDecodeThread::openCodecContext (AVCodecContext** codecContext,
 
 int FFmpegMediaDecodeThread::loadMediaFile(const juce::File &inputFile)
 {
-    //if there is already a context open, close it
-    if (formatContext) {
-        closeMediaFile ();
-        mediaFile = juce::File();
-    }
+    // Close any existing media file and reset variables
+    closeMediaFile ();
+    mediaFile = juce::File();
 
     // open input file, and allocate format context
-    int errorCode = avformat_open_input (&formatContext, inputFile.getFullPathName().toRawUTF8(), NULL, NULL);
+    int errorCode = avformat_open_input (&formatContext, inputFile.getFullPathName().toRawUTF8(), nullptr, nullptr);
     if (errorCode < 0) {
         DBG ("Opening file failed");
         _isMediaOpen = false;
@@ -103,7 +101,7 @@ int FFmpegMediaDecodeThread::loadMediaFile(const juce::File &inputFile)
     }
 
     // try to get stream infos
-    if (avformat_find_stream_info (formatContext, NULL) < 0)
+    if (avformat_find_stream_info (formatContext, nullptr) < 0)
     {
         _isMediaOpen = false;
         return false;
@@ -194,12 +192,19 @@ void FFmpegMediaDecodeThread::closeMediaFile()
     if(audioConverterContext)
     {
         swr_free(&audioConverterContext);
+        audioConverterContext = nullptr;
     }
-    avformat_close_input (&formatContext);
+    if (formatContext)
+    {
+        avformat_close_input(&formatContext);
+        formatContext = nullptr;
+    }
     _isMediaOpen = false;
     
+    // Reset any other relevant variables
     videoFramesFifo.reset();
     audioFifo.reset();
+    endOfFileReached = false;
 }
 
 juce::File FFmpegMediaDecodeThread::getMediaFile () const
@@ -228,14 +233,14 @@ void FFmpegMediaDecodeThread::run()
         if (decodingShouldPause)
         {
             //pause decoding and signal that it has stopped
-            //DBG("\tDecoding paused...");
+            DBG("\tDecoding paused...");
             decodingIsPaused = true;
             waitForDecodingToPause.signal(); // Signal that decoding is paused
             //wait until continue signal
-            //DBG("Wait until thread is continued...");
+            DBG("Wait until thread is continued...");
             waitUntilContinue.reset();
             waitUntilContinue.wait(-1);
-            //DBG("\tDecoding continued...");
+            DBG("\tDecoding continued...");
             decodingIsPaused = false; // Will resume decoding
         }
         if (!decodingIsPaused)
@@ -255,7 +260,7 @@ void FFmpegMediaDecodeThread::run()
                     if (!_firstDataHasArrived)
                     {
                         _firstDataHasArrived = true;
-                        //DBG("Buffers are filled enough...");
+                        DBG("Buffers are filled enough...");
                     }
                     waitUntilBuffersAreFullEnough.signal();
                 }
@@ -264,7 +269,7 @@ void FFmpegMediaDecodeThread::run()
                     if (!_firstDataHasArrived)
                     {
                         _firstDataHasArrived = true;
-                        //DBG("First data has arrived...");
+                        DBG("First data has arrived...");
                     }
                     waitForFirstData.signal();
                 }
@@ -301,23 +306,22 @@ void FFmpegMediaDecodeThread::run()
                 if ( ! bufferingStopped )
                 {
                     bufferingStopped = true;
-//                    waitUntilBuffersAreFullEnough.signal();
+                    //waitUntilBuffersAreFullEnough.signal();
                     //DBG("Buffering stopped, buffered video frames: " + juce::String(newFramesCount));
                 }
                 waitUntilBuffersAreFullEnough.signal();
                 wait (20);
             }
         }
-
     }
-    //DBG("VideoDecodeThread has stopped...");
+    DBG("VideoDecodeThread has stopped...");
 }
 
 int FFmpegMediaDecodeThread::readAndDecodePacket()
 {
     //allocate packet, initialise it
     AVPacket* packet = av_packet_alloc();
-    packet->data = NULL;
+    packet->data = nullptr;
     packet->size = 0;
     
     auto error = av_read_frame (formatContext, packet);
@@ -339,9 +343,9 @@ int FFmpegMediaDecodeThread::readAndDecodePacket()
             //or https://github.com/microsoft/FFmpegInterop/issues/217
             // Flush decoders only if the streams exist
             if (audioStreamIndex >= 0)
-                decodeAudioPacket(NULL);
+                decodeAudioPacket(nullptr);
             if (videoStreamIndex >= 0)
-                decodeVideoPacket(NULL);
+                decodeVideoPacket(nullptr);
             av_packet_unref (packet);
             return AVERROR_EOF;
         }
@@ -375,7 +379,7 @@ int FFmpegMediaDecodeThread::decodeAudioPacket (AVPacket* packet)
     if (countVideoFrames > 0 )
     {
         countVideoFrameGroups++;
-        //DBG("Video Frames: " + juce::String(countVideoFrames) + ", Video Groups: " + juce::String(countVideoFrameGroups));
+        DBG("Video Frames: " + juce::String(countVideoFrames) + ", Video Groups: " + juce::String(countVideoFrameGroups));
         countVideoFrames = 0;
     }
     
@@ -578,7 +582,7 @@ void FFmpegMediaDecodeThread::setPositionSeconds (const double newPositionSecond
         //start thread if it is seeked for the first time
         if(!isThreadRunning())
         {
-            //DBG("starting decoding thread.");
+            DBG("starting decoding thread.");
             startThread();
             threadStartedEvent.reset();
             threadStartedEvent.wait(-1); // Wait for thread to start
@@ -593,7 +597,7 @@ void FFmpegMediaDecodeThread::setPositionSeconds (const double newPositionSecond
         {
             waitForDecodingToPause.reset();
             waitForDecodingToPause.wait(-1);
-        } 
+        }
         
         //reset thread data about gathered data
         countVideoFrames = 0;
@@ -629,15 +633,14 @@ void FFmpegMediaDecodeThread::setPositionSeconds (const double newPositionSecond
         waitUntilBuffersAreFullEnough.reset();
         waitUntilBuffersAreFullEnough.wait(-1);
 
-//        if(!endOfFileReached)
-//        {
-//            DBG("buffers filled enough after seeking to " + juce::String(newPositionSeconds) + "(s): ");
-//        }
-//        else
-//        {
-//            DBG("buffers filled but EOF reached after seeking to " + juce::String(newPositionSeconds) + "(s)");
-//        }
-        
+        if(!endOfFileReached)
+        {
+            DBG("buffers filled enough after seeking to " + juce::String(newPositionSeconds) + "(s): ");
+        }
+        else
+        {
+            DBG("buffers filled but EOF reached after seeking to " + juce::String(newPositionSeconds) + "(s)");
+        }
     }
     
     videoListeners.call (&FFmpegVideoListener::positionSecondsChanged, newPositionSeconds);

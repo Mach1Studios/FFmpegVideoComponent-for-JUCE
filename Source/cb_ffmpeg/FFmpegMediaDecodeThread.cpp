@@ -89,8 +89,14 @@ int FFmpegMediaDecodeThread::openCodecContext (AVCodecContext** codecContext,
 int FFmpegMediaDecodeThread::loadMediaFile(const juce::File &inputFile)
 {
     // Close any existing media file and reset variables
-    closeMediaFile ();
+    closeMediaFile();
     mediaFile = juce::File();
+
+    // Reset state variables
+    currentPositionSeconds = 0.0;
+    endOfFileReached = false;
+    decodingShouldPause = false;
+    decodingIsPaused = false;
 
     // open input file, and allocate format context
     int errorCode = avformat_open_input (&formatContext, inputFile.getFullPathName().toRawUTF8(), nullptr, nullptr);

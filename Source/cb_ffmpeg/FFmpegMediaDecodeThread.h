@@ -131,6 +131,7 @@ public:
     /*! Returns the number of audio channels. */
     int getNumberOfAudioChannels () const;
 
+    void setDecodeAudio(bool shouldDecodeAudio);
     
 private:
     /*!
@@ -218,6 +219,8 @@ private:
     
     /*! video frames fifo to buffer the decoded frames*/
     FFmpegVideoFramesFIFO videoFramesFifo;
+    
+    bool decodeAudio = true; // Default to true to maintain existing behavior
 
 protected:
     juce::File  mediaFile;

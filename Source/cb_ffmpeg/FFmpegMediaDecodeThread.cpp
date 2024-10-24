@@ -364,13 +364,19 @@ int FFmpegMediaDecodeThread::readAndDecodePacket()
         return 0;
     }
     
-    if (packet->stream_index == audioStreamIndex && audioStreamIndex >= 0)
+    if (packet->stream_index == audioStreamIndex && audioStreamIndex >= 0 && decodeAudio)
+    {
         decodeAudioPacket(packet);
+    }
     else if (packet->stream_index == videoStreamIndex && videoStreamIndex >= 0)
+    {
         decodeVideoPacket(packet);
-    //discard subtitles
+    }
     else
-        DBG ("Packet is neither audio nor video... stream: " + juce::String (packet->stream_index));
+    {
+        // Discard subtitles and other streams or we are skipping audio packets by force
+        //DBG("Packet is neither audio nor video... stream: " + juce::String(packet->stream_index));
+    }
     
     av_packet_unref (packet);
     return 1; //return SUCCESS
@@ -845,3 +851,7 @@ void FFmpegMediaDecodeThread::removeVideoListener (FFmpegVideoListener* listener
     videoListeners.remove (listener);
 }
 
+void FFmpegMediaDecodeThread::setDecodeAudio(bool shouldDecodeAudio)
+{
+    decodeAudio = shouldDecodeAudio;
+}

@@ -364,7 +364,7 @@ int FFmpegMediaDecodeThread::readAndDecodePacket()
         return 0;
     }
     
-    if (packet->stream_index == audioStreamIndex && audioStreamIndex >= 0 && decodeAudio)
+    if (packet->stream_index == audioStreamIndex && audioStreamIndex >= 0)
     {
         decodeAudioPacket(packet);
     }
@@ -673,21 +673,8 @@ void FFmpegMediaDecodeThread::setPositionSeconds (const double newPositionSecond
             
             //get frame
             AVFrame* nextFrame = videoFramesFifo.getFrameAtReadIndex();
-            
-            //Debug
-//            double frameSeconds = static_cast<double>(nextFrame->pts) /
-//                static_cast<double>(formatContext->streams[videoStreamIndex]->time_base.den);
-//            if( (endOfFileReached && frameSeconds >= getDuration() - 0.25 ) /*|| frameSeconds <= 0.5*/ )
-//            {
-//                DBG(  "Update Frame " + juce::String(frameSeconds) + "/" + juce::String(getDuration()) + ", "
-//                    + "pos: " + juce::String(currentPositionSeconds) + ", "
-//                    + "fifo-index: " + juce::String(videoFramesFifo2.getReadIndex()) + ", "
-//                    + "frames left: " + juce::String(videoFramesFifo2.countNewFrames()) + ""
-//                    );
-//            }
-            
             videoFramesFifo.advanceReadIndex();
-            
+
             //provide listeners with current frame
             videoListeners.call (&FFmpegVideoListener::displayNewFrame, nextFrame);
         }
@@ -698,13 +685,6 @@ void FFmpegMediaDecodeThread::setPositionSeconds (const double newPositionSecond
             DBG ("No frame available at " + juce::String(newPositionSeconds) + " : " + juce::String(getDuration()));
         }
     }
-
-    //if the decoding method has reached the end of file and if the last frame has been displayed
-//    if(endOfFileReached && newPositionSeconds >= getDuration())
-//    {
-//        DBG("End at position: " + juce::String(newPositionSeconds));
-//        videoListeners.call (&FFmpegVideoListener::videoEnded);
-//    }
 }
 
 double FFmpegMediaDecodeThread::getCurrentPositionSeconds () const
@@ -849,9 +829,4 @@ void FFmpegMediaDecodeThread::addVideoListener (FFmpegVideoListener* listener)
 void FFmpegMediaDecodeThread::removeVideoListener (FFmpegVideoListener* listener)
 {
     videoListeners.remove (listener);
-}
-
-void FFmpegMediaDecodeThread::setDecodeAudio(bool shouldDecodeAudio)
-{
-    decodeAudio = shouldDecodeAudio;
 }

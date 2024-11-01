@@ -16,11 +16,12 @@ FFmpegMediaReader::~FFmpegMediaReader()
 
 int FFmpegMediaReader::loadMediaFile (const juce::File& inputFile)
 {
-    //if file does not exist, close current file
-    if ( !inputFile.existsAsFile() ) {
-        closeMediaFile();
-        return false;
-    }
+    closeMediaFile();
+    mediaFile = juce::File();
+    
+    // Reset state variables
+    currentPositionSeconds = 0.0;
+    endOfFileReached = false;
     
     //open file, update file handle
     if (FFmpegMediaDecodeThread::loadMediaFile (inputFile))

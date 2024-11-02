@@ -26,19 +26,9 @@ int FFmpegMediaReader::loadMediaFile (const juce::File& inputFile)
     //open file, update file handle
     if (FFmpegMediaDecodeThread::loadMediaFile (inputFile))
     {
-        if (getVideoStreamIndex() >= 0) // Only call videoSizeChanged if a video stream exists
-        {
-            //notify listeners about the new video file and it's size
-            videoListeners.call(&FFmpegVideoListener::videoFileChanged, inputFile);
-            videoListeners.call(&FFmpegVideoListener::videoSizeChanged, getVideoWidth(),
-                                getVideoHeight(), getPixelFormat()/*videoContext->pix_fmt*/);
-        }
-        else
-        {
-            // Notify listeners to clear any video frames
-            videoListeners.call(&FFmpegVideoListener::videoFileChanged, inputFile);
-            videoListeners.call(&FFmpegVideoListener::videoSizeChanged, 0, 0, AV_PIX_FMT_NONE);
-        }
+        //notify listeners about the new video file and it's size
+        videoListeners.call(&FFmpegVideoListener::videoFileChanged, inputFile);
+        videoListeners.call(&FFmpegVideoListener::videoSizeChanged, getVideoWidth(), getVideoHeight(), getPixelFormat()/*videoContext->pix_fmt*/);
         return true;
     }
     return false;

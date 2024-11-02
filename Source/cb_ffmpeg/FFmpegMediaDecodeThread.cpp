@@ -758,7 +758,9 @@ double FFmpegMediaDecodeThread::getFramesPerSecond () const
 
 double FFmpegMediaDecodeThread::getSampleRate () const
 {
-    if (audioContext) {
+    // returns audio samplerate if there is an audio stream
+    // returns video framerate if there is only a video stream
+    if (audioContext && audioStreamIndex >= 0) {
         return audioContext->sample_rate;
     } else if (videoContext) {
         return getFramesPerSecond();

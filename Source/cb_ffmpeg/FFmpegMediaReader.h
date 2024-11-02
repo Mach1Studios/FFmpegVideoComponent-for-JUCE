@@ -90,14 +90,13 @@ public:
     
     /*! Must be implemented for a positionable audio source, but we don't need it, always returns false.*/
     bool isLooping() const override;
-    
-    
+
 private:
     int audioFifoSize;
     int videoFrameFIFOSize;
     
     AudioBufferFIFO<float> audioFifo;
-    
+
     juce::int64 nextReadPos;
 
     juce::WeakReference<FFmpegMediaReader>::Master masterReference;

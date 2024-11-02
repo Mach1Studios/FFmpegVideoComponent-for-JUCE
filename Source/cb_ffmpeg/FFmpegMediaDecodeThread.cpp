@@ -760,6 +760,8 @@ double FFmpegMediaDecodeThread::getSampleRate () const
 {
     if (audioContext) {
         return audioContext->sample_rate;
+    } else if (videoContext) {
+        return getFramesPerSecond();
     }
     return 0;
 }
@@ -778,14 +780,14 @@ AVRational FFmpegMediaDecodeThread::getAudioTimeBase() const
 
 AVRational FFmpegMediaDecodeThread::getVideoTimeBase() const
 {
-        if (formatContext)
+    if (formatContext)
+    {
+        if (juce::isPositiveAndBelow (videoStreamIndex, static_cast<int> (formatContext->nb_streams)))
         {
-            if (juce::isPositiveAndBelow (videoStreamIndex, static_cast<int> (formatContext->nb_streams)))
-            {
-                return formatContext->streams [videoStreamIndex]->time_base;
-            }
+            return formatContext->streams [videoStreamIndex]->time_base;
         }
-        return av_make_q (0, 1);
+    }
+    return av_make_q (0, 1);
 }
 
 double FFmpegMediaDecodeThread::getDuration () const

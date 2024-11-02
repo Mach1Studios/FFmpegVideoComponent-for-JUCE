@@ -124,13 +124,16 @@ bool FFmpegMediaReader::waitForNextAudioBlockReady (const juce::AudioSourceChann
 
 void FFmpegMediaReader::setNextReadPosition (juce::int64 newPosition)
 {
-//    DBG("FFmpegVideoReader::setNextReadPosition(" + juce::String(newPosition) + ")");
-    if (getSampleRate() <= 0)
-        return;
-    nextReadPos = newPosition;
-    
-    //tell decode thread to seek to position
-    setPositionSeconds ( static_cast<double>(nextReadPos) / static_cast<double>(getSampleRate()), true);
+    if (getSampleRate() > 0) {
+        nextReadPos = newPosition;
+        
+        //tell decode thread to seek to position
+        setPositionSeconds ( static_cast<double>(nextReadPos) / getSampleRate(), true);
+    }
+    else
+    {
+        DBG("Invalid samplerate for setNextReadPosition...");
+    }
 }
 
 juce::int64 FFmpegMediaReader::getNextReadPosition () const
@@ -140,12 +143,12 @@ juce::int64 FFmpegMediaReader::getNextReadPosition () const
 
 juce::int64 FFmpegMediaReader::getTotalLength () const
 {
-    if (getSampleRate() > 0) {
+    if (getSampleRate() > 0) 
+    {
         return static_cast<juce::int64>(getDuration() * getSampleRate());
-    } else if (getFramesPerSecond() > 0) {
-        // if there's no audio stream, you should use the video stream's duration
-        return static_cast<juce::int64>(getDuration() * getFramesPerSecond());
-    } else {
+    }
+    else
+    {
         return 0;
     }
 }

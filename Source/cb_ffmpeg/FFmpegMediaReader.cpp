@@ -49,10 +49,14 @@ void FFmpegMediaReader::prepareToPlay (int samplesPerBlockExpected, double newSa
     //correct samplerate of the video file. It is set when loading a file
 
     //DBG("FFmpegVideoReader::prepareToPlay, SR: " + juce::String(getSampleRate()));
-    //When there's no audio, the audio FIFO might not be properly initialized
-    const int numChannels = std::max(1, getNumberOfAudioChannels());
-    audioFifo.setSize (numChannels, audioFifoSize);
-    audioFifo.reset();
+    
+    // When there's no audio, avoid initializing the audio FIFO
+    if (getNumberOfAudioChannels() > 0)
+    {
+        const int numChannels = std::max(1, getNumberOfAudioChannels());
+        audioFifo.setSize (numChannels, audioFifoSize);
+        audioFifo.reset();
+    }
     nextReadPos = 0;
 }
 
@@ -64,41 +68,50 @@ void FFmpegMediaReader::releaseResources ()
 
 void FFmpegMediaReader::getNextAudioBlock (const juce::AudioSourceChannelInfo &bufferToFill)
 {
-    // return if samplerate is invalid
-    if (getSampleRate() <= 0 || getNumberOfAudioChannels() <= 0)
+    if (getNumberOfAudioChannels() > 0)
     {
-        bufferToFill.clearActiveBufferRegion();
+        // return if samplerate is invalid
+        if (getSampleRate() <= 0 || getNumberOfAudioChannels() <= 0)
+        {
+            bufferToFill.clearActiveBufferRegion();
+            nextReadPos += bufferToFill.numSamples;
+            DBG("Invalid samplerate: " + std::to_string(getSampleRate()));
+            return;
+        }
+        
+        // this triggers reading of new video frame
+        setPositionSeconds (static_cast<double>(nextReadPos) / static_cast<double>(getSampleRate()), false);
+        
+        if (audioFifo.getNumReady() >= bufferToFill.numSamples)
+        {
+            audioFifo.readFromFifo (bufferToFill);
+        }
+        else
+        {
+            int numSamples = audioFifo.getNumReady();
+            if (numSamples > 0) {
+                audioFifo.readFromFifo (bufferToFill, numSamples);
+                bufferToFill.buffer->clear (numSamples, bufferToFill.numSamples - numSamples);
+            }
+            else {
+                bufferToFill.clearActiveBufferRegion();
+            }
+        }
+
         nextReadPos += bufferToFill.numSamples;
-        DBG("Invalid samplerate: " + std::to_string(getSampleRate()));
-        return;
-    }
-    
-    // this triggers reading of new video frame
-    setPositionSeconds (static_cast<double>(nextReadPos) / static_cast<double>(getSampleRate()), false);
-    
-    if (audioFifo.getNumReady() >= bufferToFill.numSamples)
-    {
-        audioFifo.readFromFifo (bufferToFill);
+
+        //if the decoding thread has reached the end of file and the next read position is larger then total length
+        if(endOfFileReached && nextReadPos >= getTotalLength())
+        {
+            DBG("End at position: " + juce::String(static_cast<double>(nextReadPos) / static_cast<double>(getSampleRate())));
+            videoListeners.call (&FFmpegVideoListener::videoEnded);
+        }
     }
     else
     {
-        int numSamples = audioFifo.getNumReady();
-        if (numSamples > 0) {
-            audioFifo.readFromFifo (bufferToFill, numSamples);
-            bufferToFill.buffer->clear (numSamples, bufferToFill.numSamples - numSamples);
-        }
-        else {
-            bufferToFill.clearActiveBufferRegion();
-        }
-    }
-
-    nextReadPos += bufferToFill.numSamples;
-    
-    //if the decoding thread has reached the end of file and the next read position is larger then total length
-    if(endOfFileReached && nextReadPos >= getTotalLength())
-    {
-        DBG("End at position: " + juce::String(static_cast<double>(nextReadPos) / static_cast<double>(getSampleRate())));
-        videoListeners.call (&FFmpegVideoListener::videoEnded);
+        // increment without audio
+        bufferToFill.clearActiveBufferRegion();
+        nextReadPos += bufferToFill.numSamples;
     }
 }
 

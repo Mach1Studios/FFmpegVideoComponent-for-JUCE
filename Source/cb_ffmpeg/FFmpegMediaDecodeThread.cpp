@@ -758,14 +758,15 @@ double FFmpegMediaDecodeThread::getFramesPerSecond () const
 
 double FFmpegMediaDecodeThread::getSampleRate () const
 {
-    // returns audio samplerate if there is an audio stream
-    // returns video framerate if there is only a video stream
-    if (audioContext && audioStreamIndex >= 0) {
+    if (audioContext && audioStreamIndex >= 0)
+    {
         return audioContext->sample_rate;
-    } else if (videoContext) {
-        return getFramesPerSecond();
     }
-    return 0;
+    else
+    {
+        // Return default sample rate when there's no audio
+        return 48000.0; // Use the same default as in FFmpegVCMediaObject
+    }
 }
 
 AVRational FFmpegMediaDecodeThread::getAudioTimeBase() const

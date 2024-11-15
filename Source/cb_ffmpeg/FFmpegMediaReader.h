@@ -90,6 +90,9 @@ public:
     
     /*! Must be implemented for a positionable audio source, but we don't need it, always returns false.*/
     bool isLooping() const override;
+    
+    const AVFrame* getNextVideoFrame();
+    bool isEndOfFile() const;
 
 private:
     int audioFifoSize;

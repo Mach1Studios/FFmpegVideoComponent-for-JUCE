@@ -137,6 +137,8 @@ public:
     /*! This method lets the decoding continue, if it was paused before */
     void continueDecoding();
     
+    bool isEndOfFile() const { return endOfFileReached; }
+    
 private:
     /*!
      open a codec and look for a stream of the given media type.
@@ -214,9 +216,6 @@ private:
     
     /*! audio buffer used for conversion */
     juce::AudioBuffer<float> audioConvertBuffer;
-    
-    /*! video frames fifo to buffer the decoded frames*/
-    FFmpegVideoFramesFIFO videoFramesFifo;
 
 protected:
     juce::File  mediaFile;
@@ -250,4 +249,7 @@ protected:
 
     /*! the value 1/SampleRate as member for faster calculation, when dividing by sample rate*/
     double sampleRateInverted = 0.0;
+    
+    /*! video frames fifo to buffer the decoded frames*/
+    FFmpegVideoFramesFIFO videoFramesFifo;
 };

@@ -160,3 +160,20 @@ bool FFmpegMediaReader::isLooping() const
 {
     return false;
 }
+
+const AVFrame* FFmpegMediaReader::getNextVideoFrame()
+{
+    if (videoFramesFifo.countNewFrames() > 0)
+    {
+        AVFrame* nextFrame = videoFramesFifo.getFrameAtReadIndex();
+        currentPositionSeconds = videoFramesFifo.getSecondsAtReadIndex();
+        videoFramesFifo.advanceReadIndex();
+        return nextFrame;
+    }
+    return nullptr;
+}
+
+bool FFmpegMediaReader::isEndOfFile() const
+{
+    return endOfFileReached;
+}

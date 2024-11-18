@@ -185,6 +185,7 @@ void FFmpegMediaDecodeThread::closeMediaFile()
 {
     waitUntilBuffersAreFullEnough.signal();
     signalThreadShouldExit();
+    waitUntilContinue.signal();
     waitForThreadToExit(1000);
 
     if (videoStreamIndex >= 0) {
@@ -242,12 +243,21 @@ void FFmpegMediaDecodeThread::run()
             DBG("\tDecoding paused...");
             decodingIsPaused = true;
             waitForDecodingToPause.signal(); // Signal that decoding is paused
-            //wait until continue signal
-            DBG("Wait until thread is continued...");
-            waitUntilContinue.reset();
-            waitUntilContinue.wait(-1);
-            DBG("\tDecoding continued...");
-            decodingIsPaused = false; // Will resume decoding
+            
+            //wait until continue signal or thread should exit
+            while (decodingShouldPause && !threadShouldExit())
+            {
+                if (waitUntilContinue.wait(100)) // Wait with timeout instead of indefinitely
+                {
+                    break;
+                }
+            }
+            
+            if (!threadShouldExit())
+            {
+                DBG("\tDecoding continued...");
+                decodingIsPaused = false; // Will resume decoding
+            }
         }
         if (!decodingIsPaused)
         {

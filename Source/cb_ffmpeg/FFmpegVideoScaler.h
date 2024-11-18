@@ -58,10 +58,8 @@ public:
     void setupScaler (const int in_width,  const int in_height,  const AVPixelFormat in_format,
                       const int out_width, const int out_height, const AVPixelFormat out_format)
     {
-        if (scalerContext) {
-            sws_freeContext (scalerContext);
-            scalerContext = nullptr;
-        }
+        // Release existing scaler first
+        releaseScaler();
 
         const AVPixFmtDescriptor* in_descriptor = av_pix_fmt_desc_get (in_format);
         if (!in_descriptor) {
@@ -110,6 +108,20 @@ public:
                        destination,
                        outLinesizes);
         }
+    }
+
+    void releaseScaler()
+    {
+        if (scalerContext)
+        {
+            sws_freeContext(scalerContext);
+            scalerContext = nullptr;
+        }
+    }
+
+    bool isValid() const 
+    {
+        return scalerContext != nullptr;
     }
 
 private:

@@ -23,6 +23,12 @@ int FFmpegMediaReader::loadMediaFile (const juce::File& inputFile)
     currentPositionSeconds = 0.0;
     endOfFileReached = false;
     
+    // Force stop and restart the decode thread to ensure clean state
+    if (isThreadRunning())
+    {
+        stopThread(1000);
+    }
+    
     //open file, update file handle
     if (FFmpegMediaDecodeThread::loadMediaFile (inputFile))
     {
@@ -33,7 +39,6 @@ int FFmpegMediaReader::loadMediaFile (const juce::File& inputFile)
     }
     return false;
 }
-
 
 double FFmpegMediaReader::getPositionSeconds() const
 {

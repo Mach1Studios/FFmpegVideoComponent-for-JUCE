@@ -25,6 +25,10 @@ int FFmpegMediaReader::loadMediaFile (const juce::File& inputFile)
     }
     
     if (FFmpegMediaDecodeThread::loadMediaFile(inputFile)) {
+	    // Reset state variables
+	    currentPositionSeconds = 0.0;
+	    endOfFileReached = false;
+
         // Set up audio parameters based on whether we have a real audio stream
         if (getAudioContext() != nullptr && getSampleRate() > 0) {
             effectiveSampleRate = getSampleRate();
@@ -168,3 +172,22 @@ int FFmpegMediaReader::getNumberOfAudioChannels() const
 {
     return effectiveNumChannels;
 }
+
+const AVFrame* FFmpegMediaReader::getNextVideoFrame()
+{
+    if (videoFramesFifo.countNewFrames() > 0)
+    {
+        AVFrame* nextFrame = videoFramesFifo.getFrameAtReadIndex();
+        currentPositionSeconds = videoFramesFifo.getSecondsAtReadIndex();
+        videoFramesFifo.advanceReadIndex();
+        return nextFrame;
+    }
+    return nullptr;
+}
+
+bool FFmpegMediaReader::isEndOfFile() const
+{
+    return endOfFileReached;
+}
+
+

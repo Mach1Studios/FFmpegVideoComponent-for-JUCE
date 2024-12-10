@@ -101,6 +101,11 @@ public:
     
     int getNumberOfAudioChannels() const override;
     
+	
+	const AVFrame* getNextVideoFrame();
+    
+	bool isEndOfFile() const;
+
 private:
     int audioFifoSize;
     int videoFrameFIFOSize;

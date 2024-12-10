@@ -141,6 +141,7 @@ public:
     /*! This method lets the decoding continue, if it was paused before */
     void continueDecoding();
 
+	bool isEndOfFile() const { return endOfFileReached; }
 
 protected:
     /*! returns pointer to the format context. */
@@ -223,15 +224,15 @@ private:
     /*! audio buffer used for conversion */
     juce::AudioBuffer<float> audioConvertBuffer;
     
-    /*! video frames fifo to buffer the decoded frames*/
-    FFmpegVideoFramesFIFO videoFramesFifo;
-
 protected:
     juce::File  mediaFile;
 
     /** Gives access to the audio sources fifo to fill it */
     AudioBufferFIFO<float>& audioFifo;
-    
+
+    /*! video frames fifo to buffer the decoded frames*/
+    FFmpegVideoFramesFIFO videoFramesFifo;
+
     /*! Event that is used to wait until the decoding thread has paused after being told to pause. */
     juce::WaitableEvent waitForDecodingToPause;
     

@@ -122,7 +122,7 @@ public:
     double getPixelAspectRatio () const;
 
     /*! returns the sample rate */
-    double getSampleRate () const;
+    virtual double getSampleRate () const;
 
     AVRational getAudioTimeBase() const;
     
@@ -133,8 +133,17 @@ public:
     int getAudioStreamIndex() const { return audioStreamIndex; }
     
     /*! Returns the number of audio channels. */
-    int getNumberOfAudioChannels () const;
+    virtual int getNumberOfAudioChannels () const;
 
+protected:
+    /*! returns pointer to the format context. */
+    AVFormatContext* getFormatContext() const;
+
+    /*! returns pointer to the video codec context. */
+    AVCodecContext* getVideoContext() const;
+
+    /*! returns pointer to the audio codec context. */
+    AVCodecContext* getAudioContext() const;
     
 private:
     /*!
@@ -148,15 +157,7 @@ private:
                           enum AVMediaType mediaType,
                           bool refCounted);
     
-    /*! returns pointer to the format context. */
-    AVFormatContext* getFormatContext() const;
-    
-    /*! returns pointer to the video codec context. */
-    AVCodecContext* getVideoContext () const;
-    
-    /*! returns pointer to the audio codec context. */
-    AVCodecContext* getAudioContext () const;
-    
+  
     /*! reads and decodes av packets*/
     int readAndDecodePacket();
     

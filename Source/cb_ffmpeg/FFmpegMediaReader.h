@@ -59,6 +59,9 @@ class FFmpegMediaReader
     , public FFmpegMediaDecodeThread
 {
 public:
+    static constexpr double DEFAULT_SAMPLE_RATE = 44100.0;
+    static constexpr int DEFAULT_NUM_CHANNELS = 2;
+
     FFmpegMediaReader (const int audioFifoSize=192000, const int videoFifoSize=102);
     ~FFmpegMediaReader();
     
@@ -94,11 +97,18 @@ public:
     /*! Must be implemented for a positionable audio source, but we don't need it, always returns false.*/
     bool isLooping() const override;
     
+    double getSampleRate() const override;
+    
+    int getNumberOfAudioChannels() const override;
     
 private:
     int audioFifoSize;
     int videoFrameFIFOSize;
-    
+
+    double effectiveSampleRate;
+    int effectiveNumChannels;
+    bool usingEmulatedAudio;
+
     AudioBufferFIFO<float> audioFifo;
     
     juce::int64 nextReadPos;

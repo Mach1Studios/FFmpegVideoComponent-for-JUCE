@@ -151,7 +151,32 @@ public:
         return offset;
     }
     
-    
+    bool setOffsetForSeconds(double targetSeconds) {
+        unsigned int samplesReady = countNewFrames();
+        if (samplesReady == 0)
+            return false;
+
+        // Find frame position for target time
+        unsigned int offset = findOffsetForSeconds(targetSeconds);
+        if (offset != 0) {
+
+            /*
+            // Reset all frame timings before current read position to 0
+            unsigned int currentPos = readIndex;
+            while (currentPos != writeIndex) {
+                if (currentPos < offset)
+                    videoFramesFifo[currentPos].first = 0.0;
+                currentPos = (currentPos + 1) % size;
+            }
+            //*/
+
+            readIndex = (readIndex + offset) % size;
+            return true; 
+        }
+
+        return false;
+    }
+
     
 private:
     /*! vector with pairs of position (in seconds) and corresponding frames. */

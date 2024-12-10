@@ -64,6 +64,8 @@ public:
     FFmpegMediaDecodeThread (AudioBufferFIFO<float>& fifo, const int mediaFifoSize);
     virtual ~FFmpegMediaDecodeThread ();
     
+    void enableVideoOnly(bool enable);
+
     void run() override;
 
     /*! opens a media file  */
@@ -180,7 +182,9 @@ private:
     int videoStreamIndex;
     /*! index of the audio stream */
     int audioStreamIndex;
-    
+ 
+    bool videoOnlyMode = false;
+
     /*! states if this thread should be paused after the current decoding cycle*/
     std::atomic<bool> decodingShouldPause;
     

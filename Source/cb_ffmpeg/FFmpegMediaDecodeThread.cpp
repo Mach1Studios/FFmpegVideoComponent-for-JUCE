@@ -19,6 +19,8 @@ currentPositionSeconds (0.0)
     audioFrame = av_frame_alloc();
     _isMediaOpen = false;
     endOfFileReached = false;
+    decodingShouldPause = false;
+    decodingIsPaused = false;
     
     waitForDecodingToPause.reset();
     waitUntilContinue.reset();
@@ -31,6 +33,15 @@ FFmpegMediaDecodeThread::~FFmpegMediaDecodeThread ()
     av_frame_free (&audioFrame);
     //force to stop thread, if necessary
     stopThread (1000);
+}
+
+void FFmpegMediaDecodeThread::enableVideoOnly(bool enable) {
+    videoOnlyMode = enable;
+
+    // Reset audio buffer with silence if switching to video-only mode
+    if (videoOnlyMode) {
+        audioFifo.clear();
+    }
 }
 
 int FFmpegMediaDecodeThread::openCodecContext (AVCodecContext** codecContext,
@@ -236,45 +247,50 @@ void FFmpegMediaDecodeThread::run()
         }
         if (!decodingIsPaused)
         {
-            //number of frames that have been written, but not read
-            newFramesCount = videoFramesFifo.countNewFrames();
-            
-            //if there is enough space in audio and video fifo and the audio fifo does not have too many samples not read already
-            if ( (audioFifo.getFreeSpace() > 2048
-                && (audioFifo.getNumReady() < 192000 //this 4*48000 => 4 seconds audio at 48kHz
-                && newFramesCount < videoFramesFifo.getSize() - 2) ) ) //-2 because this is a fifo
+            // Buffer size constants
+            const int targetFrameCount = 2;
+            const int targetAudioBufferSize = 1024;
+
+            // Maximum buffer sizes
+            const int capacityFrameCount = videoFramesFifo.getSize() - targetFrameCount * 2;
+            const int capacityAudioBufferSize = audioFifo.getTotalSize() - targetAudioBufferSize * 2;
+
+            // DBG("countNewFrames: " + juce::String(videoFramesFifo.countNewFrames()));
+
+            // Check if we need to continue buffering
+            if (
+                (videoStreamIndex >= 0 && videoFramesFifo.countNewFrames() < capacityFrameCount) &&
+                (videoOnlyMode || audioStreamIndex < 0 || (audioStreamIndex >= 0 && audioFifo.getNumReady() < capacityAudioBufferSize))
+            )
             {
-                //since frames come in groups of successive audio frames OR video frames, we need to buffer at least one
-                //whole group of each frame type before we can display images and play sound.
-                if ((videoStreamIndex >= 0 && countVideoFrameGroups >= 4) ||
-                    (audioStreamIndex >= 0 && countAudioFrameGroups >= 4))
+                // Wait for filling
+                if (
+                    (videoStreamIndex >= 0 && videoFramesFifo.countNewFrames() >= targetFrameCount) &&
+                    (videoOnlyMode || audioStreamIndex < 0 || (audioStreamIndex >= 0 && audioFifo.getNumReady() >= targetAudioBufferSize))
+                )
                 {
                     if (!_firstDataHasArrived)
                     {
                         _firstDataHasArrived = true;
+                        waitForFirstData.signal();
                         //DBG("Buffers are filled enough...");
                     }
-                    waitUntilBuffersAreFullEnough.signal();
-                }
-                else if ( countAudioFrames >= 1 || countVideoFrames >= 1)
-                {
-                    if (!_firstDataHasArrived)
+                    else
                     {
-                        _firstDataHasArrived = true;
-                        //DBG("First data has arrived...");
+                        waitUntilBuffersAreFullEnough.signal();
                     }
-                    waitForFirstData.signal();
                 }
                 
+
                 //keep buffering
                 bufferingStopped = false;
-                
+
                 int error = readAndDecodePacket();
-                if (error < 0 )
+                if (error < 0)
                 {
-                    if ( error == -541478725 ) // End Of File
+                    if (error == AVERROR_EOF) // End Of File
                     {
-                        if ( ! endOfFileReached )
+                        if (!endOfFileReached)
                         {
                             DBG("Decoding Thread has reached end of file.");
                             endOfFileReached = true;
@@ -288,7 +304,7 @@ void FFmpegMediaDecodeThread::run()
                             + ", " + errorString );
                     }
                     //keep checking, position might be changed
-                    wait(500);
+                    wait(20);
                 }
             }
             //else wait a little until there is enough space because something was read
@@ -302,7 +318,7 @@ void FFmpegMediaDecodeThread::run()
                     //DBG("Buffering stopped, buffered video frames: " + juce::String(newFramesCount));
                 }
                 waitUntilBuffersAreFullEnough.signal();
-                wait (20);
+                wait (5);
             }
         }
 
@@ -321,7 +337,7 @@ int FFmpegMediaDecodeThread::readAndDecodePacket()
     
     if (error < 0)
     {
-        if (error != AVERROR_EOF/*-541478725*/)
+        if (error != AVERROR_EOF)
         {
             DBG ("Error reading Packet: " + FFmpegHelpers::avErrorToString(error));
             av_packet_unref (packet);
@@ -335,9 +351,9 @@ int FFmpegMediaDecodeThread::readAndDecodePacket()
             //see https://www.ffmpeg.org/doxygen/3.4/group__lavc__encdec.html
             //or https://github.com/microsoft/FFmpegInterop/issues/217
             // Flush decoders only if the streams exist
-            if (audioStreamIndex >= 0)
+            if (!videoOnlyMode && audioStreamIndex >= 0)
                 decodeAudioPacket(NULL);
-            if (videoStreamIndex >= 0)
+             if (videoStreamIndex >= 0)
                 decodeVideoPacket(NULL);
             av_packet_unref (packet);
             return AVERROR_EOF;
@@ -350,16 +366,16 @@ int FFmpegMediaDecodeThread::readAndDecodePacket()
         av_packet_unref (packet);
         return 0;
     }
-    
-    if (packet->stream_index == audioStreamIndex && audioStreamIndex >= 0)
+
+    // Skip audio packets in video-only mode
+    if (!videoOnlyMode && packet->stream_index == audioStreamIndex && audioStreamIndex >= 0)
         decodeAudioPacket(packet);
     else if (packet->stream_index == videoStreamIndex && videoStreamIndex >= 0)
         decodeVideoPacket(packet);
-    //discard subtitles
-    else
-        DBG ("Packet is neither audio nor video... stream: " + juce::String (packet->stream_index));
-    
-    av_packet_unref (packet);
+    else if (!videoOnlyMode) //discard subtitles
+        DBG("Packet is neither audio nor video... stream: " + juce::String(packet->stream_index));
+
+    av_packet_unref(packet);
     return 1; //return SUCCESS
 }
 
@@ -434,6 +450,12 @@ int FFmpegMediaDecodeThread::decodeAudioPacket (AVPacket* packet)
                     numSamples,
                     (const uint8_t**)audioFrame->extended_data,
                     numSamples);
+
+        // Fix for init buffer
+        if (audioFifo.getNumChannels() != audioConvertBuffer.getNumChannels())
+        {
+            audioFifo.setSize(audioConvertBuffer.getNumChannels(), audioFifo.getTotalSize());
+        }
         audioFifo.addToFifo (audioConvertBuffer);
     }
     
@@ -444,13 +466,15 @@ int FFmpegMediaDecodeThread::decodeVideoPacket (AVPacket* packet)
 {
     if (!videoContext)
         return 0;
-    
+
     //count groups of audio frames
     if (countAudioFrames > 0)
     {
         countAudioFrameGroups++;
         countAudioFrames = 0;
     }
+    
+
     int response = avcodec_send_packet(videoContext, packet);
 
     if (response < 0 && response != AVERROR_EOF)
@@ -540,17 +564,17 @@ void FFmpegMediaDecodeThread::continueDecoding()
     }
 }
 
-
-void FFmpegMediaDecodeThread::setPositionSeconds (const double newPositionSeconds, bool seek)
+void FFmpegMediaDecodeThread::setPositionSeconds(const double newPositionSeconds, bool seek)
 {
     //update position
+    double currentPositionSecondsPrev = currentPositionSeconds;
     currentPositionSeconds = newPositionSeconds;
-    
-    int64_t readPosSamples = 0; // Position[Samples] = position[Seconds] * Sample Rate
+
+    int64_t readPosSamples = 0;
     int seekStreamIndex = -1;
 
-    // Calculate based on existing audio stream otherwise use video stream
-    if (audioStreamIndex >= 0)
+    // In video-only mode, always use video stream for seeking
+    if (!videoOnlyMode && audioStreamIndex >= 0)
     {
         seekStreamIndex = audioStreamIndex;
         readPosSamples = static_cast<int64_t>(currentPositionSeconds * static_cast<double>(formatContext->streams[audioStreamIndex]->time_base.den));
@@ -566,7 +590,7 @@ void FFmpegMediaDecodeThread::setPositionSeconds (const double newPositionSecond
         DBG("No audio or video stream detected!");
         return;
     }
-    
+
     //if a transport source is using the video reader to seek
     if (seek)
     {
@@ -586,40 +610,51 @@ void FFmpegMediaDecodeThread::setPositionSeconds (const double newPositionSecond
         
         //pause the decoding process safely, so it can finish the current decoding cycle
         pauseDecoding();
-        
-        //reset thread data about gathered data
-        countVideoFrames = 0;
-        countVideoFrameGroups = 0;
-        countAudioFrames = 0;
-        countAudioFrameGroups = 0;
-        endOfFileReached = false;
 
-        _firstDataHasArrived = false;  //debug stuff
-        _isBufferFilledEnough = false; //debug stuff
-        
-        //flush context buffers
-        if (getVideoContext() != nullptr) {
-            avcodec_flush_buffers(videoContext);
+      
+        // for small seek forward try to skip frames first
+        if (newPositionSeconds - currentPositionSecondsPrev > 0 && newPositionSeconds - currentPositionSecondsPrev < 2 && videoFramesFifo.setOffsetForSeconds(newPositionSeconds)) {
+            audioFifo.setOffsetForSeconds(newPositionSeconds - currentPositionSecondsPrev, getSampleRate());
         }
-        if (getAudioContext() != nullptr) {
-            avcodec_flush_buffers(audioContext);
-        }
-        
-        //go to position
-        int result = av_seek_frame (formatContext, seekStreamIndex, readPosSamples, AVSEEK_FLAG_BACKWARD);
-        if (result < 0)
-            DBG("Seek error: " + juce::String(result));
+        else { 
 
-        // reset all FIFOs
-        audioFifo.reset();
-        videoFramesFifo.reset();
+            //reset thread data about gathered data
+            countVideoFrames = 0;
+            countVideoFrameGroups = 0;
+            countAudioFrames = 0;
+            countAudioFrameGroups = 0;
+            endOfFileReached = false;
+
+            _firstDataHasArrived = false;  //debug stuff
+            _isBufferFilledEnough = false; //debug stuff
+
+            //flush context buffers
+            if (getVideoContext() != nullptr) {
+                avcodec_flush_buffers(videoContext);
+            }
+            if (!videoOnlyMode && getAudioContext() != nullptr) {
+                avcodec_flush_buffers(audioContext);
+            }
+
+            // for backward and long forward go to position 
+            int result = av_seek_frame(formatContext, seekStreamIndex, readPosSamples, AVSEEK_FLAG_BACKWARD);
+            if (result < 0)
+                DBG("Seek error: " + juce::String(result));
+
+            // reset all FIFOs
+            audioFifo.reset();
+            videoFramesFifo.reset();
+
+
+        }
 
         //continue decoding to buffer data
         continueDecoding();
-        
+
         //wait for data
         waitUntilBuffersAreFullEnough.reset();
         waitUntilBuffersAreFullEnough.wait(-1);
+
 
 //        if(!endOfFileReached)
 //        {
@@ -632,6 +667,7 @@ void FFmpegMediaDecodeThread::setPositionSeconds (const double newPositionSecond
         
     }
     
+
     videoListeners.call (&FFmpegVideoListener::positionSecondsChanged, newPositionSeconds);
 
     //if there are frames available

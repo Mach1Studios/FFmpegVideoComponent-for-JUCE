@@ -64,6 +64,7 @@ SOFTWARE
 class FFmpegVideoComponent  :
     public juce::Timer,
     public juce::AudioAppComponent,
+    public juce::KeyListener,
     public FFmpegVideoListener
 {
 public:
@@ -130,7 +131,9 @@ public:
     std::function< void()> 	onPlaybackStopped; 
     std::function< void(const juce::String&)> 	onErrorOccurred;
 
-    
+    bool keyPressed(const juce::KeyPress& key, Component* originatingComponent) override;
+    void seekRelative(double offsetSeconds);
+
 private:
     /*! This transport source provides basic transport capabilities using the video reader as source  */
     std::unique_ptr<juce::AudioTransportSource> transportSource;
@@ -156,6 +159,8 @@ private:
     double playSpeed = 1.0;
     
     bool isPaused = false;
-        
+    
+    int defaultFramerate = 30;
+
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (FFmpegVideoComponent)
 };

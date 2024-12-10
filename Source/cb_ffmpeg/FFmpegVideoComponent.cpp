@@ -2,8 +2,8 @@
 #include "FFmpegVideoComponent.h"
 #include "../cb_strings/StringHelper.h"
 
-#define AUDIO_BUFFER_SIZE 192000        // 4 seconds at 48kHz
-#define VIDEO_FRAME_BUFFER_SIZE  102    // a bit more as 4 seconds at 25 FPS
+#define AUDIO_BUFFER_SIZE 48000 * 10        // 10 seconds at 48kHz
+#define VIDEO_FRAME_BUFFER_SIZE  30 * 10    // 10 seconds at 30 FPS
 
 //==============================================================================
 FFmpegVideoComponent::FFmpegVideoComponent()
@@ -15,7 +15,7 @@ FFmpegVideoComponent::FFmpegVideoComponent()
     frameWasPainted = false;
     
     setOpaque (true);
-    startTimerHz(80);
+    startTimerHz(defaultFramerate);
     
     if (videoReader)
         videoReader->addVideoListener(this);
@@ -27,6 +27,9 @@ FFmpegVideoComponent::FFmpegVideoComponent()
     
     onPlaybackStarted = nullptr;
     onPlaybackStopped = nullptr;
+
+    addKeyListener(this);
+    setWantsKeyboardFocus(true); // Make sure component can receive keyboard focus
 
 //    if (juce::AudioIODevice* device = deviceManager.getCurrentAudioDevice())
 //    {
@@ -49,6 +52,38 @@ FFmpegVideoComponent::~FFmpegVideoComponent()
     transportSource->setSource(nullptr);
     
     shutdownAudio();
+}
+
+bool FFmpegVideoComponent::keyPressed(const juce::KeyPress& key, Component* originatingComponent)
+{
+    double seekOffset = 0.6; // 0.6 seconds seek offset
+
+    if (key.getKeyCode() == juce::KeyPress::leftKey)
+    {
+        seekRelative(-seekOffset);
+        return true;
+    }
+    else if (key.getKeyCode() == juce::KeyPress::rightKey)
+    {
+        seekRelative(seekOffset);
+        return true;
+    }
+
+    return false;
+}
+
+void FFmpegVideoComponent::seekRelative(double offsetSeconds)
+{
+    if (!isVideoOpen())
+        return;
+
+    double currentPos = getPlayPosition();
+    double newPos = currentPos + offsetSeconds;
+
+    // Clamp the position between 0 and video duration
+    newPos = std::max(0.0, std::min(newPos, getVideoDuration()));
+
+    setPlayPosition(newPos);
 }
 
 void FFmpegVideoComponent::paint (juce::Graphics& g)
@@ -175,6 +210,14 @@ juce::Result FFmpegVideoComponent::load(const juce::File &file)
     transportSource->stop();
     if ( videoReader->loadMediaFile (file) )
     {
+        stopTimer();
+        double frameRate = videoReader->getFramesPerSecond();
+
+        if (frameRate > 0.0)
+            startTimerHz(static_cast<int>(frameRate));
+        else
+            startTimerHz(defaultFramerate);
+    
         return juce::Result::ok();
     }
     else
@@ -368,7 +411,7 @@ void FFmpegVideoComponent::displayNewFrame (const AVFrame* frame)
     }
     else
     {
-        DBG ("FFMpegVideoComponent: Frame not updated yet: " + juce::String (frameSeconds) + " sec");
+        //DBG ("FFMpegVideoComponent: Frame not updated yet: " + juce::String (frameSeconds) + " sec");
     }
 }
 

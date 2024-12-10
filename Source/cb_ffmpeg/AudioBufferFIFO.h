@@ -152,6 +152,30 @@ public:
         reset();
     }
 
+
+    bool setOffsetForSeconds(double targetSeconds, double sampleRate) {
+        if (sampleRate <= 0.0)
+            return false; 
+
+        const int targetSampleOffset = static_cast<int>(targetSeconds * sampleRate);
+        const int numReady = getNumReady();
+
+        // If target is beyond available data, clear everything
+        if (targetSampleOffset > numReady) {
+            clear();
+            return false;
+        }
+
+        // Skip to target position by advancing read position
+        int start1, size1, start2, size2;
+        prepareToRead(targetSampleOffset, start1, size1, start2, size2);
+        finishedRead(size1 + size2);
+
+        const int numReady2 = getNumReady();
+
+        return true;
+    }
+
 private:
     /*! The actual audio buffer */
     juce::AudioBuffer<FloatType>    buffer;

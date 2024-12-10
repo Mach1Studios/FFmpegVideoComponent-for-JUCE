@@ -135,6 +135,12 @@ public:
     /*! Returns the number of audio channels. */
     int getNumberOfAudioChannels () const;
 
+    /*! This method interrupts the decoding thread, and waits until the current decoding cycle is finished*/
+    void pauseDecoding();
+    
+    /*! This method lets the decoding continue, if it was paused before */
+    void continueDecoding();
+
     
 private:
     /*!

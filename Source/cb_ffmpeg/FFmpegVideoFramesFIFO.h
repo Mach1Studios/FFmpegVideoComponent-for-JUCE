@@ -160,7 +160,7 @@ public:
     }
 
     
-    bool setOffsetForSeconds(double targetSeconds) {
+    bool setOffsetSeconds(double targetSeconds) {
         unsigned int samplesReady = countNewFrames();
         if (samplesReady == 0)
             return false;

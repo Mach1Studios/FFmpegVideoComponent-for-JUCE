@@ -767,8 +767,8 @@ bool FFmpegMediaDecodeThread::setOffsetSeconds(const double newOffsetSeconds)
     pauseDecoding();
 
     // for small seek forward try to skip frames first
-    videoFramesFifo.setOffsetForSeconds(newPositionSeconds);
-    audioFifo.setOffsetForSeconds(newPositionSeconds - currentPositionSecondsPrev, getSampleRate());
+    videoFramesFifo.setOffsetSeconds(newPositionSeconds);
+    audioFifo.setOffsetSeconds(newPositionSeconds - currentPositionSecondsPrev, getSampleRate());
    
 
     //continue decoding to buffer data

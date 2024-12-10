@@ -153,7 +153,7 @@ public:
     }
 
 
-    bool setOffsetForSeconds(double targetSeconds, double sampleRate) {
+    bool setOffsetSeconds(double targetSeconds, double sampleRate) {
         if (sampleRate <= 0.0)
             return false; 
 

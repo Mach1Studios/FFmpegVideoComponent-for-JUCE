@@ -56,16 +56,16 @@ FFmpegVideoComponent::~FFmpegVideoComponent()
 
 bool FFmpegVideoComponent::keyPressed(const juce::KeyPress& key, Component* originatingComponent)
 {
-    double seekOffset = 0.6; // 0.6 seconds seek offset
+    double offset = 0.2; // 0.2 seconds for offset
 
     if (key.getKeyCode() == juce::KeyPress::leftKey)
     {
-        seekRelative(-seekOffset);
+        setOffset(-offset);
         return true;
     }
     else if (key.getKeyCode() == juce::KeyPress::rightKey)
     {
-        seekRelative(seekOffset);
+        setOffset(offset);
         return true;
     }
 
@@ -311,6 +311,23 @@ void FFmpegVideoComponent::setPlayPosition(double newPositionSeconds)
     if (!isPaused)
         transportSource->start();
 }
+
+void FFmpegVideoComponent::setOffset(double newOffsetSeconds)
+{
+    DBG("FFMpegVideoComponent::setOffset(" + juce::String(newOffsetSeconds) + ")");
+
+    if (!isVideoOpen())
+        return;
+
+    if (!isPaused)
+        transportSource->stop();
+
+    videoReader->setOffsetReadPosition(newOffsetSeconds * videoReader->getSampleRate());
+
+    if (!isPaused)
+        transportSource->start();
+}
+
 
 double FFmpegVideoComponent::getPlayPosition() const
 {

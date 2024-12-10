@@ -252,8 +252,8 @@ void FFmpegMediaDecodeThread::run()
             const int targetAudioBufferSize = 1024;
 
             // Maximum buffer sizes
-            const int capacityFrameCount = videoFramesFifo.getSize() - targetFrameCount * 2;
-            const int capacityAudioBufferSize = audioFifo.getTotalSize() - targetAudioBufferSize * 2;
+            const int capacityFrameCount = videoFramesFifo.getSize() - targetFrameCount * 4;
+            const int capacityAudioBufferSize = audioFifo.getTotalSize() - targetAudioBufferSize * 4;
 
             // DBG("countNewFrames: " + juce::String(videoFramesFifo.countNewFrames()));
 
@@ -612,42 +612,36 @@ void FFmpegMediaDecodeThread::setPositionSeconds(const double newPositionSeconds
         pauseDecoding();
 
       
-        // for small seek forward try to skip frames first
-        if (newPositionSeconds - currentPositionSecondsPrev > 0 && newPositionSeconds - currentPositionSecondsPrev < 2 && videoFramesFifo.setOffsetForSeconds(newPositionSeconds)) {
-            audioFifo.setOffsetForSeconds(newPositionSeconds - currentPositionSecondsPrev, getSampleRate());
+        
+
+        //reset thread data about gathered data
+        countVideoFrames = 0;
+        countVideoFrameGroups = 0;
+        countAudioFrames = 0;
+        countAudioFrameGroups = 0;
+        endOfFileReached = false;
+
+        _firstDataHasArrived = false;  //debug stuff
+        _isBufferFilledEnough = false; //debug stuff
+
+        //flush context buffers
+        if (getVideoContext() != nullptr) {
+            avcodec_flush_buffers(videoContext);
         }
-        else { 
-
-            //reset thread data about gathered data
-            countVideoFrames = 0;
-            countVideoFrameGroups = 0;
-            countAudioFrames = 0;
-            countAudioFrameGroups = 0;
-            endOfFileReached = false;
-
-            _firstDataHasArrived = false;  //debug stuff
-            _isBufferFilledEnough = false; //debug stuff
-
-            //flush context buffers
-            if (getVideoContext() != nullptr) {
-                avcodec_flush_buffers(videoContext);
-            }
-            if (!videoOnlyMode && getAudioContext() != nullptr) {
-                avcodec_flush_buffers(audioContext);
-            }
-
-            // for backward and long forward go to position 
-            int result = av_seek_frame(formatContext, seekStreamIndex, readPosSamples, AVSEEK_FLAG_BACKWARD);
-            if (result < 0)
-                DBG("Seek error: " + juce::String(result));
-
-            // reset all FIFOs
-            audioFifo.reset();
-            videoFramesFifo.reset();
-
-
+        if (!videoOnlyMode && getAudioContext() != nullptr) {
+            avcodec_flush_buffers(audioContext);
         }
 
+        // for backward and long forward go to position 
+        int result = av_seek_frame(formatContext, seekStreamIndex, readPosSamples, AVSEEK_FLAG_BACKWARD);
+        if (result < 0)
+            DBG("Seek error: " + juce::String(result));
+
+        // reset all FIFOs
+        audioFifo.reset();
+        videoFramesFifo.reset();
+
+ 
         //continue decoding to buffer data
         continueDecoding();
 
@@ -673,6 +667,8 @@ void FFmpegMediaDecodeThread::setPositionSeconds(const double newPositionSeconds
     //if there are frames available
     if (videoFramesFifo.countNewFrames() > 0)
     {
+        //DBG("getReadIndex: " + juce::String(videoFramesFifo.getReadIndex()));
+
         //Try to find the position of the current video frame in FIFO, starting at read position. The current frame might
         //not be the next frame in fifo. Frames before the current frame must be dropped.
         auto currentFramePositionOffset = videoFramesFifo.findOffsetForSeconds(newPositionSeconds);
@@ -680,10 +676,8 @@ void FFmpegMediaDecodeThread::setPositionSeconds(const double newPositionSeconds
         //if frame found or it was seeked
         if (currentFramePositionOffset > 0 || seek)
         {
-            //TODO: see if this really happens with some videos
-            if (currentFramePositionOffset > 1)
-                DBG ("Dropped " + juce::String (currentFramePositionOffset-1) + " frame(s).");
             
+
             //get frame
             AVFrame* nextFrame = videoFramesFifo.getFrameAtReadIndex();
             
@@ -718,6 +712,105 @@ void FFmpegMediaDecodeThread::setPositionSeconds(const double newPositionSeconds
 //        DBG("End at position: " + juce::String(newPositionSeconds));
 //        videoListeners.call (&FFmpegVideoListener::videoEnded);
 //    }
+}
+
+bool FFmpegMediaDecodeThread::setOffsetSeconds(const double newOffsetSeconds)
+{
+    double newPositionSeconds = currentPositionSeconds + newOffsetSeconds;
+
+    if (!videoFramesFifo.checkExistingFrameForSeconds(newPositionSeconds))
+    {
+        return false;
+    }
+
+    //update position
+    double currentPositionSecondsPrev = currentPositionSeconds;
+    currentPositionSeconds = newPositionSeconds;
+
+    int64_t readPosSamples = 0;
+    int seekStreamIndex = -1;
+
+    // In video-only mode, always use video stream for seeking
+    if (!videoOnlyMode && audioStreamIndex >= 0)
+    {
+        seekStreamIndex = audioStreamIndex;
+        readPosSamples = static_cast<int64_t>(currentPositionSeconds * static_cast<double>(formatContext->streams[audioStreamIndex]->time_base.den));
+    }
+    else if (videoStreamIndex >= 0)
+    {
+        seekStreamIndex = videoStreamIndex;
+        readPosSamples = static_cast<int64_t>(currentPositionSeconds * static_cast<double>(formatContext->streams[videoStreamIndex]->time_base.den));
+    }
+    else
+    {
+        // Handle the case where neither stream is available
+        DBG("No audio or video stream detected!");
+        return false;
+    }
+
+     
+    DBG("\n>>>>>>>>>> offset to position: " + juce::String(newPositionSeconds)
+        + "(" + juce::String(getDuration()) + "), readPos: " + juce::String(readPosSamples));
+
+    //start thread if it is seeked for the first time
+    if (!isThreadRunning())
+    {
+        //            DBG("starting decoding thread.");
+        startThread();
+
+        //let thread run for a while to see if data arrives
+        waitForFirstData.reset();
+        waitForFirstData.wait(-1);
+    }
+
+    //pause the decoding process safely, so it can finish the current decoding cycle
+    pauseDecoding();
+
+    // for small seek forward try to skip frames first
+    videoFramesFifo.setOffsetForSeconds(newPositionSeconds);
+    audioFifo.setOffsetForSeconds(newPositionSeconds - currentPositionSecondsPrev, getSampleRate());
+   
+
+    //continue decoding to buffer data
+    continueDecoding();
+
+    
+    //wait for data
+    waitUntilBuffersAreFullEnough.reset();
+    waitUntilBuffersAreFullEnough.wait(-1);
+
+
+    videoListeners.call(&FFmpegVideoListener::positionSecondsChanged, newPositionSeconds);
+
+    //if there are frames available
+    if (videoFramesFifo.countNewFrames() > 0)
+    {
+        //DBG("getReadIndex: " + juce::String(videoFramesFifo.getReadIndex()));
+
+        //Try to find the position of the current video frame in FIFO, starting at read position. The current frame might
+        //not be the next frame in fifo. Frames before the current frame must be dropped.
+        auto currentFramePositionOffset = videoFramesFifo.findOffsetForSeconds(newPositionSeconds);
+
+        //if frame found or it was seeked
+        if (currentFramePositionOffset > 0)
+        {
+            //get frame
+            AVFrame* nextFrame = videoFramesFifo.getFrameAtReadIndex();
+ 
+            videoFramesFifo.advanceReadIndex();
+
+            //provide listeners with current frame
+            videoListeners.call(&FFmpegVideoListener::displayNewFrame, nextFrame);
+        }
+    }
+    else
+    {
+        if (getVideoContext() != nullptr) {
+            DBG("No frame available at " + juce::String(newPositionSeconds) + " : " + juce::String(getDuration()));
+        }
+    }
+ 
+    return true;
 }
 
 double FFmpegMediaDecodeThread::getCurrentPositionSeconds () const

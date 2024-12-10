@@ -150,6 +150,15 @@ public:
             offset++;
         return offset;
     }
+
+    unsigned int checkExistingFrameForSeconds(double seconds)
+    {
+        //Try to find the position of the current video frame in FIFO, starting at read position. The current frame might
+        //not be the next frame in fifo. Frames before the current frame must be dropped.
+        unsigned int offset = findOffsetForSeconds(seconds);
+        return (offset != 0 && videoFramesFifo[(readIndex + offset) % size].first > seconds);
+    }
+
     
     bool setOffsetForSeconds(double targetSeconds) {
         unsigned int samplesReady = countNewFrames();

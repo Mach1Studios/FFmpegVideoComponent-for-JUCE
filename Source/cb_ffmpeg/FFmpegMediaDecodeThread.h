@@ -135,6 +135,13 @@ public:
     /*! Returns the number of audio channels. */
     virtual int getNumberOfAudioChannels () const;
 
+    /*! This method interrupts the decoding thread, and waits until the current decoding cycle is finished*/
+    void pauseDecoding();
+    
+    /*! This method lets the decoding continue, if it was paused before */
+    void continueDecoding();
+
+
 protected:
     /*! returns pointer to the format context. */
     AVFormatContext* getFormatContext() const;
@@ -144,6 +151,7 @@ protected:
 
     /*! returns pointer to the audio codec context. */
     AVCodecContext* getAudioContext() const;
+
     
 private:
     /*!
@@ -168,12 +176,6 @@ private:
     /** Decodes a video packet and adds frames to video FIFO. Called by readAndDecodePacket(). This method returns an error code if something goes
         wrong. */
     int decodeVideoPacket (AVPacket* packet);
-    
-    /*! This method interrupts the decoding thread, and waits until the current decoding cycle is finished*/
-    void pauseDecoding();
-    
-    /*! This method lets the decoding continue, if it was paused before */
-    void continueDecoding();
     
     /* Contexts */
     AVFormatContext* formatContext;

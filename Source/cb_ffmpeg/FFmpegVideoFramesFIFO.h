@@ -105,11 +105,11 @@ public:
         return videoFramesFifo[writeIndex].second;
     }
     
-    double getSecondsAtWriteIndex()
+    double getSecondsAtWriteIndex(int offset = 0)
     {
-        return videoFramesFifo[writeIndex].first;
+        return videoFramesFifo[(writeIndex + offset) % size].first;
     }
-    
+
     unsigned int advanceReadIndex()
     {
         readIndex = (++readIndex)%size;
@@ -131,9 +131,12 @@ public:
         }
     }
     
-    unsigned countNewFrames()
+    unsigned int countNewFrames()
     {
-        return (size + writeIndex - readIndex) % size;
+        if (writeIndex >= readIndex)
+            return writeIndex - readIndex;
+        else
+            return size - (readIndex - writeIndex);
     }
     
     void setSecondsAtWriteIndex(double new_seconds)

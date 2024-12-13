@@ -137,9 +137,9 @@ public:
         prepareToRead (readSamples, start1, size1, start2, size2);
         
         // Adjust start positions with offset
-        start1 += effectiveOffset;
+        start1 = (start1 + readOffset) % getTotalSize();
         if (size2 > 0) {
-            start2 += effectiveOffset;
+            start2 = (start2 + readOffset) % getTotalSize();
         }
 
         if (size1 > 0)

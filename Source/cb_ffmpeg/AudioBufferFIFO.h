@@ -125,19 +125,30 @@ public:
 
     /*! Reads sample data from this fifo into AudioSourceChannelInfo buffers, so it can be used in an getNextAudioBlock
      * of audio sources. */
-    void readFromFifo (const juce::AudioSourceChannelInfo& info, int numSamples=-1)
+    void readFromFifo(const juce::AudioSourceChannelInfo& info, int numSamples=-1)
     {
         const int readSamples = numSamples > 0 ? numSamples : info.numSamples;
         jassert (getNumReady() >= readSamples);
 
+        // Apply read offset if within available samples
+        const int effectiveOffset = readOffset < getNumReady() ? readOffset : 0;
+        
         int start1, size1, start2, size2;
         prepareToRead (readSamples, start1, size1, start2, size2);
+        
+        // Adjust start positions with offset
+        start1 += effectiveOffset;
+        if (size2 > 0) {
+            start2 += effectiveOffset;
+        }
+
         if (size1 > 0)
             for (int channel = 0; channel < info.buffer->getNumChannels(); ++channel)
-                    info.buffer->copyFrom (channel, info.startSample, buffer.getReadPointer (channel, start1), size1);
+                info.buffer->copyFrom (channel, info.startSample, buffer.getReadPointer (channel, start1), size1);
         if (size2 > 0)
             for (int channel = 0; channel < info.buffer->getNumChannels(); ++channel)
                 info.buffer->copyFrom (channel, info.startSample + size1, buffer.getReadPointer (channel, start2), size2);
+        
         finishedRead (size1 + size2);
     }
 
@@ -152,33 +163,16 @@ public:
         reset();
     }
 
-
-    bool setOffsetSeconds(double targetSeconds, double sampleRate) {
+    void setOffsetSeconds(double targetSeconds, double sampleRate) {
         if (sampleRate <= 0.0)
-            return false; 
+            return;
 
-        const int targetSampleOffset = static_cast<int>(targetSeconds * sampleRate);
-        const int numReady = getNumReady();
-
-        // If target is beyond available data, clear everything
-        if (targetSampleOffset > numReady) {
-            clear();
-            return false;
-        }
-
-        // Skip to target position by advancing read position
-        int start1, size1, start2, size2;
-        prepareToRead(targetSampleOffset, start1, size1, start2, size2);
-        finishedRead(size1 + size2);
-
-        const int numReady2 = getNumReady();
-
-        return true;
+        readOffset = static_cast<int>(targetSeconds * sampleRate);
     }
 
 private:
     /*! The actual audio buffer */
-    juce::AudioBuffer<FloatType>    buffer;
-    
-    
+    juce::AudioBuffer<FloatType> buffer;
+    int readOffset = 0;
+
 };

@@ -141,11 +141,11 @@ void FFmpegMediaReader::setOffsetReadPosition(juce::int64 newOffset)
     if (getSampleRate() <= 0)
         return;
 
-    //tell decode thread to set offset
-    if(setOffsetSeconds(static_cast<double>(newOffset) / static_cast<double>(getSampleRate())))
-    {
-        nextReadPos = nextReadPos + newOffset;
-    }
+    if (newOffset < 0)
+        newOffset = 0;
+
+    // tell decode thread to set offset
+    setOffsetSeconds(static_cast<double>(newOffset) / static_cast<double>(getSampleRate()));
 }
 
 juce::int64 FFmpegMediaReader::getNextReadPosition () const

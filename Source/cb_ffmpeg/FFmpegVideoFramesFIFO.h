@@ -90,9 +90,17 @@ public:
         return size;
     }
     
+    /*
     AVFrame* getFrameAtReadIndex()
     {
         return videoFramesFifo[readIndex].second;
+    }
+    */
+
+    AVFrame* getFrameAtReadIndex()
+    {
+        // Apply read offset if within available samples
+        return videoFramesFifo[readFrameOffset < countNewFrames() ? (readIndex + readFrameOffset) % size: readIndex].second;
     }
     
     double getSecondsAtReadIndex()
@@ -105,9 +113,9 @@ public:
         return videoFramesFifo[writeIndex].second;
     }
     
-    double getSecondsAtWriteIndex(int offset = 0)
+    double getSecondsAtWriteIndex(int writeIdxOffset = 0)
     {
-        return videoFramesFifo[(writeIndex + offset) % size].first;
+        return videoFramesFifo[(writeIndex + writeIdxOffset) % size].first;
     }
 
     unsigned int advanceReadIndex()
@@ -144,49 +152,23 @@ public:
         videoFramesFifo[writeIndex].first = new_seconds;
     }
     
-    unsigned int findOffsetForSeconds(double seconds)
+    int findOffsetForSeconds(double seconds)
     {
         //Try to find the position of the current video frame in FIFO, starting at read position. The current frame might
         //not be the next frame in fifo. Frames before the current frame must be dropped.
-        auto offset=0;
+        int offset=0;
         while ( (videoFramesFifo [(readIndex + offset) % size].first < seconds) && offset < countNewFrames() )
             offset++;
         return offset;
     }
 
-    unsigned int checkExistingFrameForSeconds(double seconds)
-    {
-        //Try to find the position of the current video frame in FIFO, starting at read position. The current frame might
-        //not be the next frame in fifo. Frames before the current frame must be dropped.
-        unsigned int offset = findOffsetForSeconds(seconds);
-        return (offset != 0 && videoFramesFifo[(readIndex + offset) % size].first > seconds);
-    }
-
-    
-    bool setOffsetSeconds(double targetSeconds) {
+    void setOffsetSeconds(double targetSeconds) {
         unsigned int samplesReady = countNewFrames();
         if (samplesReady == 0)
-            return false;
+            return;
 
         // Find frame position for target time
-        unsigned int offset = findOffsetForSeconds(targetSeconds);
-        if (offset != 0) {
-
-            /*
-            // Reset all frame timings before current read position to 0
-            unsigned int currentPos = readIndex;
-            while (currentPos != writeIndex) {
-                if (currentPos < offset)
-                    videoFramesFifo[currentPos].first = 0.0;
-                currentPos = (currentPos + 1) % size;
-            }
-            //*/
-
-            readIndex = (readIndex + offset) % size;
-            return true; 
-        }
-
-        return false;
+        readFrameOffset = findOffsetForSeconds(targetSeconds);
     }
 
     
@@ -197,5 +179,6 @@ private:
     unsigned int size = 0;
     unsigned int readIndex = 0;
     unsigned int writeIndex = 0;
+    int readFrameOffset = 0;
 
 };

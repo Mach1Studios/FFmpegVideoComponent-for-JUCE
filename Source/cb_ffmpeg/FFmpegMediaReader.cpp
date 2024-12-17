@@ -89,14 +89,10 @@ void FFmpegMediaReader::getNextAudioBlock (const juce::AudioSourceChannelInfo &b
         bufferToFill.clearActiveBufferRegion();
         nextReadPos += bufferToFill.numSamples;
         
-        // Still trigger video frame updates based on timing
-        setPositionSeconds(static_cast<double>(nextReadPos) / effectiveSampleRate, false);
         return;
     }
     
     // Use real audio
-    setPositionSeconds(static_cast<double>(nextReadPos) / effectiveSampleRate, false);
-    
     if (audioFifo.getNumReady() >= bufferToFill.numSamples) {
         audioFifo.readFromFifo(bufferToFill);
     } else {

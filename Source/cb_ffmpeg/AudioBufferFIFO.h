@@ -132,11 +132,14 @@ public:
 
         int start1, size1, start2, size2;
         prepareToRead (readSamples, start1, size1, start2, size2);
+
+        int channels = (std::min)(info.buffer->getNumChannels(), buffer.getNumChannels());
+
         if (size1 > 0)
-            for (int channel = 0; channel < info.buffer->getNumChannels(); ++channel)
+            for (int channel = 0; channel < channels; ++channel)
                     info.buffer->copyFrom (channel, info.startSample, buffer.getReadPointer (channel, start1), size1);
         if (size2 > 0)
-            for (int channel = 0; channel < info.buffer->getNumChannels(); ++channel)
+            for (int channel = 0; channel < channels; ++channel)
                 info.buffer->copyFrom (channel, info.startSample + size1, buffer.getReadPointer (channel, start2), size2);
         finishedRead (size1 + size2);
     }

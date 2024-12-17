@@ -177,8 +177,8 @@ const AVFrame* FFmpegMediaReader::getNextVideoFrame()
 {
     if (videoFramesFifo.countNewFrames() > 0)
     {
-        AVFrame* nextFrame = videoFramesFifo.getFrameAtReadIndex();
         currentPositionSeconds = videoFramesFifo.getSecondsAtReadIndex();
+        AVFrame* nextFrame = videoFramesFifo.getFrameAtReadIndex();
         videoFramesFifo.advanceReadIndex();
         return nextFrame;
     }
@@ -189,8 +189,8 @@ const AVFrame* FFmpegMediaReader::getNextVideoFrameWithOffset(double seconds)
 {
     if (videoFramesFifo.countNewFrames() > 0)
     {
-        AVFrame* nextFrame = videoFramesFifo.getFrameAtReadIndexWithOffset(seconds);
         currentPositionSeconds = videoFramesFifo.getSecondsAtReadIndex();
+        AVFrame* nextFrame = videoFramesFifo.getFrameAtReadIndexForSeconds(currentPositionSeconds + seconds);
         videoFramesFifo.advanceReadIndex();
         return nextFrame;
     }

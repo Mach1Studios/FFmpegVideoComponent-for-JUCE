@@ -162,7 +162,7 @@ public:
         return (offset != 0 && videoFramesFifo[(readIndex + offset) % size].first > seconds);
     }
 
-    AVFrame* getFrameAtReadIndexWithOffset(double targetSeconds)
+    AVFrame* getFrameAtReadIndexForSeconds(double targetSeconds)
     {
         unsigned int offset = findOffsetForSeconds(targetSeconds);
         if (offset != 0) {

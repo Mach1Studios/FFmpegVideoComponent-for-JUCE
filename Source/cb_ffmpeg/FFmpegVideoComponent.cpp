@@ -8,7 +8,7 @@
 //==============================================================================
 FFmpegVideoComponent::FFmpegVideoComponent()
     : transportSource(new juce::AudioTransportSource)
-, videoReader(new FFmpegMediaReader (AUDIO_BUFFER_SIZE, VIDEO_FRAME_BUFFER_SIZE))
+, videoReader(new FFmpegMediaReader ())
     , currentAVFrame(nullptr)
     , playSpeed(1.0)
 {
@@ -81,7 +81,7 @@ void FFmpegVideoComponent::seekRelative(double offsetSeconds)
     double newPos = currentPos + offsetSeconds;
 
     // Clamp the position between 0 and video duration
-    newPos = std::max(0.0, std::min(newPos, getVideoDuration()));
+    newPos = (std::max)(0.0, (std::min)(newPos, getVideoDuration()));
 
     setPlayPosition(newPos);
 }

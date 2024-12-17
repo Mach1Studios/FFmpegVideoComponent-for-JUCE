@@ -59,10 +59,11 @@ class FFmpegMediaReader
     , public FFmpegMediaDecodeThread
 {
 public:
-    static constexpr double DEFAULT_SAMPLE_RATE = 44100.0;
+    static constexpr double DEFAULT_SAMPLE_RATE = 48000.0;
     static constexpr int DEFAULT_NUM_CHANNELS = 2;
+    static constexpr int DEFAULT_FRAMERATE = 60;
 
-    FFmpegMediaReader (const int audioFifoSize=192000, const int videoFifoSize=102);
+    FFmpegMediaReader (const int audioFifoSize = DEFAULT_SAMPLE_RATE * 10, const int videoFifoSize = DEFAULT_FRAMERATE * 10);
     ~FFmpegMediaReader();
     
     /*! load a file */

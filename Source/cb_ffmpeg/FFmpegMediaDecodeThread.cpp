@@ -239,20 +239,18 @@ void FFmpegMediaDecodeThread::run()
         {
             //pause decoding and signal that it has stopped
             //DBG("\tDecoding paused...");
+
+            waitUntilContinue.reset();
+
             decodingIsPaused = true;
             waitForDecodingToPause.signal();
             //wait until continue signal
             //DBG("Wait until thread is continued...");
-            waitUntilContinue.reset();
             waitUntilContinue.wait(-1);
             //DBG("\tDecoding continued...");
         }
         if (!decodingIsPaused)
         {
-            // Buffer size constants
-            const int targetFrameCount = 2;
-            const int targetAudioBufferSize = 1024;
-
             // Maximum buffer sizes
             const int capacityFrameCount = videoFramesFifo.getSize() - targetFrameCount * 4;
             const int capacityAudioBufferSize = audioFifo.getTotalSize() - targetAudioBufferSize * 4;
@@ -542,16 +540,17 @@ int FFmpegMediaDecodeThread::decodeVideoPacket (AVPacket* packet)
 
 void FFmpegMediaDecodeThread::pauseDecoding()
 {
-    if (/*!decodingShouldPause &&*/ isThreadRunning())
+    if (!decodingIsPaused && isThreadRunning())
     {
+        waitForDecodingToPause.reset();
+        //DBG("Wait for decoding thread to pause...");
+
         decodingShouldPause = true;
         //wait until thread has paused
-        if ( !decodingIsPaused )
-        {
-            waitForDecodingToPause.reset();
-//            DBG("Wait for decoding thread to pause...");
-            waitForDecodingToPause.wait(-1);
-        }
+
+        waitForDecodingToPause.wait(-1);
+        //DBG("Waited for decoding thread to pause!");
+        
     }
 }
 
@@ -695,15 +694,18 @@ void FFmpegMediaDecodeThread::setPositionSeconds(const double newPositionSeconds
 bool FFmpegMediaDecodeThread::setOffsetSeconds(const double newOffsetSeconds)
 {
     double newPositionSeconds = currentPositionSeconds + newOffsetSeconds;
+    
+    // check that buffer ready
+    bool ready = (videoStreamIndex >= 0 && videoFramesFifo.countNewFrames() >= 2 * targetFrameCount) &&
+        (videoOnlyMode || audioStreamIndex < 0 || (audioStreamIndex >= 0 && audioFifo.getNumReady() >= 2 * targetAudioBufferSize));
 
-    if (!videoFramesFifo.checkExistingFrameForSeconds(newPositionSeconds))
+    if (!ready || !videoFramesFifo.checkExistingFrameForSeconds(newPositionSeconds))
     {
         return false;
     }
 
     //update position
     double currentPositionSecondsPrev = currentPositionSeconds;
-    currentPositionSeconds = newPositionSeconds;
 
     int64_t readPosSamples = 0;
     int seekStreamIndex = -1;
@@ -712,12 +714,12 @@ bool FFmpegMediaDecodeThread::setOffsetSeconds(const double newOffsetSeconds)
     if (!videoOnlyMode && audioStreamIndex >= 0)
     {
         seekStreamIndex = audioStreamIndex;
-        readPosSamples = static_cast<int64_t>(currentPositionSeconds * static_cast<double>(formatContext->streams[audioStreamIndex]->time_base.den));
+        readPosSamples = static_cast<int64_t>(newPositionSeconds * static_cast<double>(formatContext->streams[audioStreamIndex]->time_base.den));
     }
     else if (videoStreamIndex >= 0)
     {
         seekStreamIndex = videoStreamIndex;
-        readPosSamples = static_cast<int64_t>(currentPositionSeconds * static_cast<double>(formatContext->streams[videoStreamIndex]->time_base.den));
+        readPosSamples = static_cast<int64_t>(newPositionSeconds * static_cast<double>(formatContext->streams[videoStreamIndex]->time_base.den));
     }
     else
     {
@@ -748,46 +750,9 @@ bool FFmpegMediaDecodeThread::setOffsetSeconds(const double newOffsetSeconds)
     videoFramesFifo.setOffsetSeconds(newPositionSeconds);
     audioFifo.setOffsetSeconds(newPositionSeconds - currentPositionSecondsPrev, getSampleRate());
    
-
     //continue decoding to buffer data
-    continueDecoding();
+    continueDecoding(); 
 
-    
-    //wait for data
-    waitUntilBuffersAreFullEnough.reset();
-    waitUntilBuffersAreFullEnough.wait(-1);
-
-
-    videoListeners.call(&FFmpegVideoListener::positionSecondsChanged, newPositionSeconds);
-
-    //if there are frames available
-    if (videoFramesFifo.countNewFrames() > 0)
-    {
-        //DBG("getReadIndex: " + juce::String(videoFramesFifo.getReadIndex()));
-
-        //Try to find the position of the current video frame in FIFO, starting at read position. The current frame might
-        //not be the next frame in fifo. Frames before the current frame must be dropped.
-        auto currentFramePositionOffset = videoFramesFifo.findOffsetForSeconds(newPositionSeconds);
-
-        //if frame found or it was seeked
-        if (currentFramePositionOffset > 0)
-        {
-            //get frame
-            AVFrame* nextFrame = videoFramesFifo.getFrameAtReadIndex();
- 
-            videoFramesFifo.advanceReadIndex();
-
-            //provide listeners with current frame
-            videoListeners.call(&FFmpegVideoListener::displayNewFrame, nextFrame);
-        }
-    }
-    else
-    {
-        if (getVideoContext() != nullptr) {
-            DBG("No frame available at " + juce::String(newPositionSeconds) + " : " + juce::String(getDuration()));
-        }
-    }
- 
     return true;
 }
 

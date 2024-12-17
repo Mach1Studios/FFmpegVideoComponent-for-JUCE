@@ -30,7 +30,7 @@ int FFmpegMediaReader::loadMediaFile (const juce::File& inputFile)
 	    endOfFileReached = false;
 
         // Set up audio parameters based on whether we have a real audio stream
-        if (getAudioContext() != nullptr && getSampleRate() > 0) {
+        if (getAudioContext() != nullptr) {
             effectiveSampleRate = getSampleRate();
             effectiveNumChannels = getNumberOfAudioChannels();
             usingEmulatedAudio = false;
@@ -70,7 +70,7 @@ void FFmpegMediaReader::prepareToPlay (int samplesPerBlockExpected, double newSa
 
     //DBG("FFmpegVideoReader::prepareToPlay, SR: " + juce::String(getSampleRate()));
     //When there's no audio, the audio FIFO might not be properly initialized
-    const int numChannels = std::max(1, getNumberOfAudioChannels());
+    const int numChannels = (std::max)(1, getNumberOfAudioChannels());
     audioFifo.setSize (numChannels, audioFifoSize);
     audioFifo.reset();
     nextReadPos = 0;

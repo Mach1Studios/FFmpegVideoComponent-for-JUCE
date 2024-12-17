@@ -191,6 +191,10 @@ private:
  
     bool videoOnlyMode = false;
 
+    // Buffer size constants
+    const int targetFrameCount = 2;
+    const int targetAudioBufferSize = 1024;
+
     /*! states if this thread should be paused after the current decoding cycle*/
     std::atomic<bool> decodingShouldPause;
     

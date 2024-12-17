@@ -185,6 +185,19 @@ const AVFrame* FFmpegMediaReader::getNextVideoFrame()
     return nullptr;
 }
 
+const AVFrame* FFmpegMediaReader::getNextVideoFrameWithOffset(double seconds)
+{
+    if (videoFramesFifo.countNewFrames() > 0)
+    {
+        AVFrame* nextFrame = videoFramesFifo.getFrameAtReadIndexWithOffset(seconds);
+        currentPositionSeconds = videoFramesFifo.getSecondsAtReadIndex();
+        videoFramesFifo.advanceReadIndex();
+        return nextFrame;
+    }
+    return nullptr;
+}
+
+
 bool FFmpegMediaReader::isEndOfFile() const
 {
     return endOfFileReached;

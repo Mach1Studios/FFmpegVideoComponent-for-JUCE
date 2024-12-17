@@ -101,11 +101,12 @@ public:
     double getSampleRate() const override;
     
     int getNumberOfAudioChannels() const override;
-    
-	
+    	
 	const AVFrame* getNextVideoFrame();
-    
-	bool isEndOfFile() const;
+
+    const AVFrame* getNextVideoFrameWithOffset(double seconds);
+	
+    bool isEndOfFile() const;
 
 private:
     int audioFifoSize;

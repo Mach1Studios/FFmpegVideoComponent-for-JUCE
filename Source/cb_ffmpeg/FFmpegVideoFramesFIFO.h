@@ -162,7 +162,15 @@ public:
         return (offset != 0 && videoFramesFifo[(readIndex + offset) % size].first > seconds);
     }
 
-    
+    AVFrame* getFrameAtReadIndexWithOffset(double targetSeconds)
+    {
+        unsigned int offset = findOffsetForSeconds(targetSeconds);
+        if (offset != 0) {
+            return videoFramesFifo[(readIndex + offset) % size].second;
+        }
+        return videoFramesFifo[readIndex].second;
+    }
+
     bool setOffsetSeconds(double targetSeconds) {
         unsigned int samplesReady = countNewFrames();
         if (samplesReady == 0)
@@ -171,17 +179,6 @@ public:
         // Find frame position for target time
         unsigned int offset = findOffsetForSeconds(targetSeconds);
         if (offset != 0) {
-
-            /*
-            // Reset all frame timings before current read position to 0
-            unsigned int currentPos = readIndex;
-            while (currentPos != writeIndex) {
-                if (currentPos < offset)
-                    videoFramesFifo[currentPos].first = 0.0;
-                currentPos = (currentPos + 1) % size;
-            }
-            //*/
-
             readIndex = (readIndex + offset) % size;
             return true; 
         }

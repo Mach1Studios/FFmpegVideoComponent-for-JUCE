@@ -258,15 +258,19 @@ void FFmpegMediaDecodeThread::run()
             // DBG("countNewFrames: " + juce::String(videoFramesFifo.countNewFrames()));
 
             // Check if we need to continue buffering
+
+            bool skipVideo = videoStreamIndex < 0 && audioStreamIndex >= 0;
+            bool skipAudio = (videoOnlyMode || audioStreamIndex < 0);
+
             if (
-                (videoStreamIndex >= 0 && videoFramesFifo.countNewFrames() < capacityFrameCount) &&
-                (videoOnlyMode || audioStreamIndex < 0 || (audioStreamIndex >= 0 && audioFifo.getNumReady() < capacityAudioBufferSize))
+                (skipVideo || (videoStreamIndex >= 0 && videoFramesFifo.countNewFrames() < capacityFrameCount)) &&
+                (skipAudio || (audioStreamIndex >= 0 && audioFifo.getNumReady() < capacityAudioBufferSize))
             )
             {
                 // Wait for filling
                 if (
-                    (videoStreamIndex >= 0 && videoFramesFifo.countNewFrames() >= targetFrameCount) &&
-                    (videoOnlyMode || audioStreamIndex < 0 || (audioStreamIndex >= 0 && audioFifo.getNumReady() >= targetAudioBufferSize))
+                    (skipVideo || (videoStreamIndex >= 0 && videoFramesFifo.countNewFrames() >= targetFrameCount)) &&
+                    (skipAudio || (audioStreamIndex >= 0 && audioFifo.getNumReady() >= targetAudioBufferSize))
                 )
                 {
                     if (!_firstDataHasArrived)

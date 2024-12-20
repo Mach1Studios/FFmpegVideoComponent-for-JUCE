@@ -461,6 +461,7 @@ int FFmpegMediaDecodeThread::decodeAudioPacket (AVPacket* packet)
             audioFifo.setSize(audioConvertBuffer.getNumChannels(), audioFifo.getTotalSize());
         }
         audioFifo.addToFifo (audioConvertBuffer);
+        audioFifo.setSecondsAtWritePosition(framePTSsecs);
     }
     
     return numOutputSamples;
@@ -579,8 +580,9 @@ void FFmpegMediaDecodeThread::setPositionSeconds(const double newPositionSeconds
     int seekStreamIndex = -1;
 
     if (seek == false) {
+
         // In video-only mode, always use video stream for seeking
-        if (!videoOnlyMode && audioStreamIndex >= 0)
+        if (audioStreamIndex >= 0 && (!videoOnlyMode || videoStreamIndex < 0))
         {
             seekStreamIndex = audioStreamIndex;
             readPosSamples = static_cast<int64_t>(currentPositionSeconds *
@@ -605,7 +607,7 @@ void FFmpegMediaDecodeThread::setPositionSeconds(const double newPositionSeconds
         double seekOffset = -0.5; // Seek 0.5 seconds before target for more precise seeking
 
         // In video-only mode, always use video stream for seeking
-        if (!videoOnlyMode && audioStreamIndex >= 0)
+        if (audioStreamIndex >= 0 && (!videoOnlyMode || videoStreamIndex < 0))
         {
             seekStreamIndex = audioStreamIndex;
             readPosSamples = static_cast<int64_t>((std::max)(0.0, currentPositionSeconds + seekOffset) *
@@ -665,6 +667,12 @@ void FFmpegMediaDecodeThread::setPositionSeconds(const double newPositionSeconds
             // Check if we've reached our target position
             if (videoStreamIndex >= 0 && videoFramesFifo.countNewFrames() > 0) {
                 double frameTime = videoFramesFifo.getSecondsAtWriteIndex(-1);
+                if (frameTime >= currentPositionSeconds) {
+                    break;
+                }
+            }
+            else if(audioStreamIndex >= 0 && audioFifo.getTotalSize() > 0) {
+                double frameTime = audioFifo.getSecondsAtWritePosition();
                 if (frameTime >= currentPositionSeconds) {
                     break;
                 }

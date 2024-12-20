@@ -95,7 +95,6 @@ public:
     double getVideoDuration() const;
     void play();
     void setPlayPosition(double newPositionSeconds);
-    void setOffset(double newOffsetSeconds);
     double getPlayPosition() const;
     void setPlaySpeed(double newSpeed);
     double getPlaySpeed() const;

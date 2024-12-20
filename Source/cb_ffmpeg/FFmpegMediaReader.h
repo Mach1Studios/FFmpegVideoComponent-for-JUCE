@@ -85,9 +85,6 @@ public:
     /** Seeks in the stream */
     void setNextReadPosition (juce::int64 newPosition) override;
 
-    /** Set offset in the stream */
-    void setOffsetReadPosition(juce::int64 newOffset);
-
     /*! Returns the sample count of the next sample to be returned by getNextAudioBlock */
     juce::int64 getNextReadPosition () const override;
     

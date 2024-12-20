@@ -92,8 +92,6 @@ public:
     /** Sets or resets the reading position in the current video file. */
     void setPositionSeconds (const double newPositionSeconds, bool seek = false);
     
-    bool setOffsetSeconds(const double newOffsetSeconds);
-
     /** returns the position in seconds */
     double getCurrentPositionSeconds () const;
     

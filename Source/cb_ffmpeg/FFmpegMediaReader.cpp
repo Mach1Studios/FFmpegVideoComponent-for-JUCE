@@ -57,8 +57,10 @@ int FFmpegMediaReader::loadMediaFile (const juce::File& inputFile)
 
 double FFmpegMediaReader::getPositionSeconds() const
 {
-    if (getSampleRate() > 0)
+    if (!usingEmulatedAudio && getSampleRate() > 0)
         return static_cast<double> (nextReadPos) / getSampleRate();
+    else
+        return currentPositionSeconds;
     return -1.0;
 }
 
@@ -129,19 +131,6 @@ void FFmpegMediaReader::setNextReadPosition(juce::int64 newPosition)
 
     nextReadPos = newPosition;
     setPositionSeconds(static_cast<double>(nextReadPos) / effectiveSampleRate, true);
-}
-
-void FFmpegMediaReader::setOffsetReadPosition(juce::int64 newOffset)
-{
-    //    DBG("FFmpegVideoReader::setOffsetReadPosition(" + juce::String(newOffset) + ")");
-    if (getSampleRate() <= 0)
-        return;
-
-    //tell decode thread to set offset
-    if(setOffsetSeconds(static_cast<double>(newOffset) / static_cast<double>(getSampleRate())))
-    {
-        nextReadPos = nextReadPos + newOffset;
-    }
 }
 
 juce::int64 FFmpegMediaReader::getNextReadPosition () const

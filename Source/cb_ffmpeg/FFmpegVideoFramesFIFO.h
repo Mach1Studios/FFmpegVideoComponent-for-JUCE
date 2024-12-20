@@ -171,21 +171,6 @@ public:
         return videoFramesFifo[readIndex].second;
     }
 
-    bool setOffsetSeconds(double targetSeconds) {
-        unsigned int samplesReady = countNewFrames();
-        if (samplesReady == 0)
-            return false;
-
-        // Find frame position for target time
-        unsigned int offset = findOffsetForSeconds(targetSeconds);
-        if (offset != 0) {
-            readIndex = (readIndex + offset) % size;
-            return true; 
-        }
-
-        return false;
-    }
-
     
 private:
     /*! vector with pairs of position (in seconds) and corresponding frames. */

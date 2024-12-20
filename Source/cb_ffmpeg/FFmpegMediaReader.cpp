@@ -31,8 +31,8 @@ int FFmpegMediaReader::loadMediaFile (const juce::File& inputFile)
 
         // Set up audio parameters based on whether we have a real audio stream
         if (getAudioContext() != nullptr) {
-            effectiveSampleRate = getSampleRate();
-            effectiveNumChannels = getNumberOfAudioChannels();
+            effectiveSampleRate = getAudioContext()->sample_rate;
+            effectiveNumChannels = getAudioContext()->channels;
             usingEmulatedAudio = false;
         } else {
             // No audio stream - use default values

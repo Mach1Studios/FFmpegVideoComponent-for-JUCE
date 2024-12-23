@@ -57,11 +57,12 @@ int FFmpegMediaReader::loadMediaFile (const juce::File& inputFile)
 
 double FFmpegMediaReader::getPositionSeconds() const
 {
-    if (!usingEmulatedAudio && getSampleRate() > 0)
+    if (getVideoContext() != nullptr)
+        return currentPositionSeconds;
+    else if (getSampleRate() > 0)
         return static_cast<double> (nextReadPos) / getSampleRate();
     else
-        return currentPositionSeconds;
-    return -1.0;
+        return -1.0;
 }
 
 void FFmpegMediaReader::prepareToPlay (int samplesPerBlockExpected, double newSampleRate)

@@ -21,14 +21,14 @@
               file="Source/cb_ffmpeg/FFmpegVideoComponent.h"/>
         <FILE id="XBQgsn" name="FFmpegVideoComponent.cpp" compile="1" resource="0"
               file="Source/cb_ffmpeg/FFmpegVideoComponent.cpp"/>
-        <FILE id="rHqQxL" name="FFmpegVideoReader.h" compile="0" resource="0"
-              file="Source/cb_ffmpeg/FFmpegVideoReader.h"/>
-        <FILE id="RJa3fW" name="FFmpegVideoReader.cpp" compile="1" resource="0"
-              file="Source/cb_ffmpeg/FFmpegVideoReader.cpp"/>
-        <FILE id="j0LnMI" name="FFmpegVideoDecodeThread.h" compile="0" resource="0"
-              file="Source/cb_ffmpeg/FFmpegVideoDecodeThread.h"/>
-        <FILE id="ElJZtv" name="FFmpegVideoDecodeThread.cpp" compile="1" resource="0"
-              file="Source/cb_ffmpeg/FFmpegVideoDecodeThread.cpp"/>
+        <FILE id="pTMrHQ" name="FFmpegMediaDecodeThread.cpp" compile="1" resource="0"
+              file="Source/cb_ffmpeg/FFmpegMediaDecodeThread.cpp"/>
+        <FILE id="ERhKEB" name="FFmpegMediaDecodeThread.h" compile="0" resource="0"
+              file="Source/cb_ffmpeg/FFmpegMediaDecodeThread.h"/>
+        <FILE id="nylVjX" name="FFmpegMediaReader.cpp" compile="1" resource="0"
+              file="Source/cb_ffmpeg/FFmpegMediaReader.cpp"/>
+        <FILE id="o2caHX" name="FFmpegMediaReader.h" compile="0" resource="0"
+              file="Source/cb_ffmpeg/FFmpegMediaReader.h"/>
         <FILE id="Llsbxy" name="FFmpegVideoListener.h" compile="0" resource="0"
               file="Source/cb_ffmpeg/FFmpegVideoListener.h"/>
         <FILE id="CPNzjH" name="FFmpegVideoScaler.h" compile="0" resource="0"

@@ -23,32 +23,88 @@ if (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
 
 elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Windows" AND ${CMAKE_SYSTEM_PROCESSOR} STREQUAL "AMD64")
     
-    # TODO: Use the FFMPEGBUILD concept for mac here too
+    # Build FFmpeg 5.1 from source using BtbN/FFmpeg-Builds
+    message(STATUS "Building FFmpeg 5.1 from source for Windows...")
+    
+    # Check for required tools (Docker and bash)
+    find_program(DOCKER_EXECUTABLE docker)
+    find_program(BASH_EXECUTABLE bash)
+    
+    if(NOT DOCKER_EXECUTABLE OR NOT BASH_EXECUTABLE)
+        message(WARNING "Docker and/or bash not found. Falling back to pre-built binaries.")
+        message(STATUS "Please install Docker Desktop and ensure bash is available (e.g., via Git Bash, WSL, or MSYS2)")
+        
+        # Fallback to pre-built binaries
+        set(BUILT_ffmpeg_RELEASE "ffmpeg-master-latest-win64-gpl-shared.zip")
+        
+        if (NOT "${PROJECT_BINARY_DIR}/_deps/ffmpeg-build" IN_LIST "${CMAKE_PREFIX_PATH}")
+            list(APPEND CMAKE_PREFIX_PATH "${PROJECT_BINARY_DIR}/_deps/ffmpeg-build")
+        endif()
+        message(STATUS "ffmpeg download path: ${PROJECT_BINARY_DIR}/_deps/ffmpeg-build")
 
-    set(BUILT_ffmpeg_RELEASE "ffmpeg-n5.1-latest-win64-gpl-shared-5.1.zip")
-
-    if(NOT BUILT_ffmpeg_RELEASE)
-        message(FATAL_ERROR "Platform ${CMAKE_SYSTEM_PROCESSOR} on system ${CMAKE_SYSTEM_NAME} is not supported!")
+        FetchContent_Declare(ffmpeg
+            URL  "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/${BUILT_ffmpeg_RELEASE}"
+            SOURCE_DIR "${PROJECT_BINARY_DIR}/_deps/ffmpeg-build"  
+        )
+    else()
+        # Build from source using BtbN/FFmpeg-Builds
+        message(STATUS "Docker and bash found. Building FFmpeg 5.1 from source...")
+        
+        # Set up build directory
+        set(FFMPEG_BUILD_DIR "${PROJECT_BINARY_DIR}/_deps/ffmpeg-builds")
+        set(FFMPEG_OUTPUT_DIR "${PROJECT_BINARY_DIR}/_deps/ffmpeg-build")
+        
+        if (NOT "${FFMPEG_OUTPUT_DIR}" IN_LIST "${CMAKE_PREFIX_PATH}")
+            list(APPEND CMAKE_PREFIX_PATH "${FFMPEG_OUTPUT_DIR}")
+        endif()
+        
+        # Clone the BtbN/FFmpeg-Builds repository
+        FetchContent_Declare(ffmpeg_builds
+            GIT_REPOSITORY "https://github.com/BtbN/FFmpeg-Builds.git"
+            GIT_TAG "master"
+            SOURCE_DIR "${FFMPEG_BUILD_DIR}"
+            CONFIGURE_COMMAND ""
+            BUILD_COMMAND ""
+        )
+        
+        FetchContent_MakeAvailable(ffmpeg_builds)
+        
+        # Custom target to build FFmpeg 5.1
+        add_custom_target(build_ffmpeg
+            COMMAND ${BASH_EXECUTABLE} -c "cd ${FFMPEG_BUILD_DIR} && ./build.sh win64 gpl 5.1"
+            WORKING_DIRECTORY ${FFMPEG_BUILD_DIR}
+            COMMENT "Building FFmpeg 5.1 for Windows x64 with GPL..."
+        )
+        
+        # Extract the built artifacts
+        add_custom_target(extract_ffmpeg
+            COMMAND ${CMAKE_COMMAND} -E make_directory ${FFMPEG_OUTPUT_DIR}
+            COMMAND ${CMAKE_COMMAND} -E chdir ${FFMPEG_BUILD_DIR}/artifacts 
+                ${CMAKE_COMMAND} -E tar xf ffmpeg-5.1-win64-gpl.zip
+            COMMAND ${CMAKE_COMMAND} -E copy_directory 
+                ${FFMPEG_BUILD_DIR}/artifacts/ffmpeg-5.1-win64-gpl 
+                ${FFMPEG_OUTPUT_DIR}
+            DEPENDS build_ffmpeg
+            COMMENT "Extracting FFmpeg build artifacts..."
+        )
+        
+        # Create a dummy target for FetchContent compatibility
+        add_custom_target(ffmpeg_dummy DEPENDS extract_ffmpeg)
+        
+        # Set ffmpeg as built
+        set(ffmpeg_POPULATED TRUE)
+        set(ffmpeg_SOURCE_DIR ${FFMPEG_BUILD_DIR})
+        set(ffmpeg_BINARY_DIR ${FFMPEG_OUTPUT_DIR})
     endif()
-
-    if (NOT "${PROJECT_BINARY_DIR}/_deps/ffmpeg-build" IN_LIST "${CMAKE_PREFIX_PATH}")
-        list(APPEND CMAKE_PREFIX_PATH "${PROJECT_BINARY_DIR}/_deps/ffmpeg-build")
-    endif()
-    message(STATUS "ffmpeg download path: ${PROJECT_BINARY_DIR}/_deps/ffmpeg-build")
-
-    FetchContent_Declare(ffmpeg
-        URL  "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/${BUILT_ffmpeg_RELEASE}"
-        SOURCE_DIR "${PROJECT_BINARY_DIR}/_deps/ffmpeg-build"  
-    )
 
 elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Linux")
 
     # TODO: Use the FFMPEGBUILD concept for mac here too
     
     if(${CMAKE_SYSTEM_PROCESSOR} STREQUAL "x86_64" OR ${CMAKE_SYSTEM_PROCESSOR} STREQUAL "amd64")
-        set(BUILT_ffmpeg_RELEASE "ffmpeg-n5.1-latest-linux64-gpl-5.1.tar.xz")
+        set(BUILT_ffmpeg_RELEASE "ffmpeg-master-latest-linux64-gpl.tar.xz")
     elseif(${CMAKE_SYSTEM_PROCESSOR} STREQUAL aarch64)
-        set(BUILT_ffmpeg_RELEASE "ffmpeg-n5.1-latest-linuxarm64-gpl-5.1.tar.xz")
+        set(BUILT_ffmpeg_RELEASE "ffmpeg-master-latest-linuxarm64-gpl.tar.xz")
     endif()
 
     if(NOT BUILT_ffmpeg_RELEASE)
@@ -66,13 +122,31 @@ elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Linux")
 
 endif()
 
-FetchContent_MakeAvailable(ffmpeg)
+# Handle FetchContent_MakeAvailable for different cases
+if(${CMAKE_SYSTEM_NAME} STREQUAL "Windows" AND ${CMAKE_SYSTEM_PROCESSOR} STREQUAL "AMD64")
+    # For Windows, we handle this conditionally above
+    if(NOT DOCKER_EXECUTABLE OR NOT BASH_EXECUTABLE)
+        FetchContent_MakeAvailable(ffmpeg)
+    endif()
+    # For source builds, dependencies are handled by custom targets
+else()
+    FetchContent_MakeAvailable(ffmpeg)
+endif()
 
 if (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
 
     find_package_message("${CMAKE_FIND_PACKAGE_NAME}" 
                           "ffmpeg package found -- Sources downloaded"
                           "ffmpeg (GitHub)")
+
+    set(${CMAKE_FIND_PACKAGE_NAME}_FOUND TRUE)
+
+elseif(${CMAKE_SYSTEM_NAME} STREQUAL "Windows" AND ${CMAKE_SYSTEM_PROCESSOR} STREQUAL "AMD64" AND DOCKER_EXECUTABLE AND BASH_EXECUTABLE)
+
+    # For Windows source builds, we need to add dependencies to the main project
+    find_package_message("${CMAKE_FIND_PACKAGE_NAME}" 
+                          "ffmpeg package will be built from source (5.1)"
+                          "ffmpeg (BtbN/FFmpeg-Builds)")
 
     set(${CMAKE_FIND_PACKAGE_NAME}_FOUND TRUE)
 

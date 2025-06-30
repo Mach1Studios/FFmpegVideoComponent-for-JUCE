@@ -42,7 +42,41 @@ if(WIN32)
         
         # Build FFmpeg 5.1 from source using BtbN/FFmpeg-Builds
         find_program(DOCKER_EXECUTABLE docker REQUIRED)
-        find_program(BASH_EXECUTABLE bash REQUIRED)
+        
+        # Find bash in common Windows locations
+        find_program(BASH_EXECUTABLE 
+            NAMES bash bash.exe
+            PATHS 
+                "C:/Program Files/Git/bin"
+                "C:/Program Files (x86)/Git/bin"
+                "C:/Program Files/Git/usr/bin"
+                "C:/Program Files (x86)/Git/usr/bin"
+                "C:/msys64/usr/bin"
+                "C:/msys32/usr/bin"
+                "C:/Windows/System32"
+                "C:/Windows/SysWOW64"
+                "$ENV{PROGRAMFILES}/Git/bin"
+                "$ENV{PROGRAMFILES(X86)}/Git/bin"
+                "$ENV{PROGRAMFILES}/Git/usr/bin"
+                "$ENV{PROGRAMFILES(X86)}/Git/usr/bin"
+            DOC "Path to bash executable"
+            NO_DEFAULT_PATH
+        )
+        
+        # If not found in common locations, try system PATH as fallback
+        if(NOT BASH_EXECUTABLE)
+            find_program(BASH_EXECUTABLE 
+                NAMES bash bash.exe
+                DOC "Path to bash executable"
+            )
+        endif()
+        
+        if(NOT BASH_EXECUTABLE)
+            message(FATAL_ERROR "bash not found. Please install Git for Windows (which includes bash) or ensure bash is in your PATH")
+        endif()
+        
+        message(STATUS "Found bash: ${BASH_EXECUTABLE}")
+        message(STATUS "Found docker: ${DOCKER_EXECUTABLE}")
         
         if(DOCKER_EXECUTABLE AND BASH_EXECUTABLE)
             message(STATUS "Building FFmpeg 5.1 from source using Docker...")

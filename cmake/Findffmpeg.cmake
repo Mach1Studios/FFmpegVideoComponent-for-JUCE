@@ -36,9 +36,7 @@ elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Windows" AND ${CMAKE_SYSTEM_PROCESSOR} ST
             "C:/Program Files/Git/bin"
             "C:/Program Files (x86)/Git/bin"
             "$ENV{ProgramFiles}/Git/bin"
-            "$ENV{ProgramFiles(x86)}/Git/bin"
             "$ENV{LOCALAPPDATA}/Programs/Git/bin"
-        PATH_SUFFIXES bin
         DOC "Bash shell executable (preferring Git Bash)"
     )
     

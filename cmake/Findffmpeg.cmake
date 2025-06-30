@@ -28,30 +28,9 @@ elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Windows" AND ${CMAKE_SYSTEM_PROCESSOR} ST
     
     # Check for required tools (Docker and bash)
     find_program(DOCKER_EXECUTABLE docker)
+    find_program(BASH_EXECUTABLE bash)
     
-    # Look for bash, preferring Git Bash over WSL bash on Windows
-    find_program(BASH_EXECUTABLE 
-        NAMES bash bash.exe
-        PATHS 
-            "C:/Program Files/Git/bin"
-            "C:/Program Files (x86)/Git/bin"
-            "$ENV{ProgramFiles}/Git/bin"
-            "$ENV{LOCALAPPDATA}/Programs/Git/bin"
-        DOC "Bash shell executable (preferring Git Bash)"
-    )
-    
-    # If not found in Git locations, try system paths but warn about WSL
-    if(NOT BASH_EXECUTABLE)
-        find_program(BASH_EXECUTABLE bash)
-        if(BASH_EXECUTABLE AND BASH_EXECUTABLE MATCHES "System32")
-            message(WARNING "Found WSL bash at ${BASH_EXECUTABLE}, which may not work reliably with Visual Studio builds.")
-            message(STATUS "Treating WSL bash as unavailable. Please install Git for Windows for better compatibility.")
-            unset(BASH_EXECUTABLE)
-            unset(BASH_EXECUTABLE CACHE)
-        endif()
-    endif()
-    
-    # Test if bash actually works
+    # Test if bash actually works with Docker builds
     if(BASH_EXECUTABLE)
         execute_process(
             COMMAND "${BASH_EXECUTABLE}" -c "echo test"
@@ -62,12 +41,12 @@ elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Windows" AND ${CMAKE_SYSTEM_PROCESSOR} ST
         )
         
         if(NOT BASH_TEST_RESULT EQUAL 0)
-            message(WARNING "Bash test failed: ${BASH_TEST_ERROR}")
+            message(WARNING "Bash test basic command failed: ${BASH_TEST_ERROR}")
             message(STATUS "Bash at ${BASH_EXECUTABLE} is not working properly")
             unset(BASH_EXECUTABLE)
             unset(BASH_EXECUTABLE CACHE)
         else()
-            message(STATUS "Bash test successful: ${BASH_TEST_OUTPUT}")
+            message(STATUS "Found working bash at: ${BASH_EXECUTABLE}")
         endif()
     endif()
     
@@ -77,10 +56,8 @@ elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Windows" AND ${CMAKE_SYSTEM_PROCESSOR} ST
             message(STATUS "Docker not found. Please install Docker Desktop from https://www.docker.com/products/docker-desktop")
         endif()
         if(NOT BASH_EXECUTABLE)
-            message(STATUS "Bash not found. Please install Git for Windows from https://git-scm.com/download/win")
-            message(STATUS "This provides Git Bash which works better than WSL for building.")
-        else()
-            message(STATUS "Found bash at: ${BASH_EXECUTABLE}")
+            message(STATUS "Bash not found or not working. Please ensure bash is available in PATH.")
+            message(STATUS "Options: Git for Windows, Windows Terminal with bash, WSL, or MSYS2")
         endif()
         
         # Fallback to pre-built binaries
@@ -118,16 +95,11 @@ elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Windows" AND ${CMAKE_SYSTEM_PROCESSOR} ST
         
         FetchContent_MakeAvailable(ffmpeg_builds)
         
-        # Debug: Show what we found
-        message(STATUS "Docker found at: ${DOCKER_EXECUTABLE}")
-        message(STATUS "Bash found at: ${BASH_EXECUTABLE}")
-        message(STATUS "Build directory: ${FFMPEG_BUILD_DIR}")
+        message(STATUS "Building FFmpeg 5.1 from source using: ${BASH_EXECUTABLE}")
         
         # Custom target to build FFmpeg 5.1
         add_custom_target(build_ffmpeg
-            COMMAND ${CMAKE_COMMAND} -E echo "Starting FFmpeg build with bash: ${BASH_EXECUTABLE}"
-            COMMAND ${CMAKE_COMMAND} -E echo "Working directory: ${FFMPEG_BUILD_DIR}"
-            COMMAND "${BASH_EXECUTABLE}" -c "cd '${FFMPEG_BUILD_DIR}' && pwd && ls -la && ./build.sh win64 gpl 5.1"
+            COMMAND "${BASH_EXECUTABLE}" -c "cd '${FFMPEG_BUILD_DIR}' && ./build.sh win64 gpl 5.1"
             WORKING_DIRECTORY ${FFMPEG_BUILD_DIR}
             COMMENT "Building FFmpeg 5.1 for Windows x64 with GPL..."
         )

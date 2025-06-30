@@ -43,9 +43,8 @@ if(WIN32)
         # Build FFmpeg 5.1 from source using BtbN/FFmpeg-Builds
         find_program(DOCKER_EXECUTABLE docker REQUIRED)
         find_program(BASH_EXECUTABLE bash REQUIRED)
-        find_program(UNZIP_EXECUTABLE unzip REQUIRED)
         
-        if(DOCKER_EXECUTABLE AND BASH_EXECUTABLE AND UNZIP_EXECUTABLE)
+        if(DOCKER_EXECUTABLE AND BASH_EXECUTABLE)
             message(STATUS "Building FFmpeg 5.1 from source using Docker...")
             
             # Custom target to build FFmpeg
@@ -56,11 +55,12 @@ if(WIN32)
                 COMMAND git clone --depth 1 "${FFMPEG_URL}" "${FFMPEG_BUILD_DIR}"
                 COMMAND ${BASH_EXECUTABLE} -c "cd '${FFMPEG_BUILD_DIR}' && ./build.sh win64 gpl 5.1"
                 COMMAND ${CMAKE_COMMAND} -E make_directory "${FFMPEG_EXTRACT_DIR}"
-                COMMAND ${BASH_EXECUTABLE} -c "cd '${FFMPEG_BUILD_DIR}/artifacts' && unzip -q ffmpeg-*-win64-gpl-*.zip && cp -r ffmpeg-*-win64-gpl-*/* '${FFMPEG_EXTRACT_DIR}/'"
+                COMMAND powershell -Command "Get-ChildItem -Path '${FFMPEG_BUILD_DIR}/artifacts' -Filter 'ffmpeg-*-win64-gpl-*.zip' | ForEach-Object { Expand-Archive -Path $_.FullName -DestinationPath '${FFMPEG_BUILD_DIR}/artifacts/temp' -Force }"
+                COMMAND powershell -Command "Get-ChildItem -Path '${FFMPEG_BUILD_DIR}/artifacts/temp' -Directory | ForEach-Object { Copy-Item -Path (Join-Path $_.FullName '*') -Destination '${FFMPEG_EXTRACT_DIR}' -Recurse -Force }"
                 WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}"
             )
         else()
-            message(FATAL_ERROR "Docker, bash, and unzip are required to build FFmpeg from source")
+            message(FATAL_ERROR "Docker and bash are required to build FFmpeg from source")
         endif()
     endif()
     

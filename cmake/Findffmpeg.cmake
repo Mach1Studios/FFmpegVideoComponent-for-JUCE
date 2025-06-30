@@ -141,41 +141,77 @@ if (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
 
     set(${CMAKE_FIND_PACKAGE_NAME}_FOUND TRUE)
 
-elseif(${CMAKE_SYSTEM_NAME} STREQUAL "Windows" AND ${CMAKE_SYSTEM_PROCESSOR} STREQUAL "AMD64" AND DOCKER_EXECUTABLE AND BASH_EXECUTABLE)
-
-    # For Windows source builds, we need to add dependencies to the main project
-    find_package_message("${CMAKE_FIND_PACKAGE_NAME}" 
-                          "ffmpeg package will be built from source (5.1)"
-                          "ffmpeg (BtbN/FFmpeg-Builds)")
-
-    set(${CMAKE_FIND_PACKAGE_NAME}_FOUND TRUE)
-
 else()
 
-    macro(find_component _component _header)
-        find_path(${_component}_INCLUDE_DIRS "${_header}" PATH_SUFFIXES ffmpeg)
-        
-        if (${CMAKE_SYSTEM_NAME} STREQUAL "Windows")
-            set(CMAKE_FIND_LIBRARY_PREFIXES "lib")
-            set(CMAKE_FIND_LIBRARY_SUFFIXES ".dll.a")
-            #message(STATUS "ffmpeg component: ${CMAKE_FIND_LIBRARY_PREFIXES}${_component}${CMAKE_FIND_LIBRARY_SUFFIXES}")
-            find_library(${_component}_LIBRARY NAMES "${CMAKE_FIND_LIBRARY_PREFIXES}${_component}${CMAKE_FIND_LIBRARY_SUFFIXES}" PATH_SUFFIXES ffmpeg)
-        else()
-            find_library(${_component}_LIBRARY NAMES "${_component}" PATH_SUFFIXES ffmpeg)            
-        endif()
+    # Check if we're building from source on Windows
+    set(BUILDING_FROM_SOURCE FALSE)
+    if(${CMAKE_SYSTEM_NAME} STREQUAL "Windows" AND ${CMAKE_SYSTEM_PROCESSOR} STREQUAL "AMD64" AND DOCKER_EXECUTABLE AND BASH_EXECUTABLE)
+        set(BUILDING_FROM_SOURCE TRUE)
+        message(STATUS "ffmpeg package will be built from source (5.1) - BtbN/FFmpeg-Builds")
+    endif()
 
-        if (${_component}_LIBRARY AND ${_component}_INCLUDE_DIRS)
+    macro(find_component _component _header)
+        if(BUILDING_FROM_SOURCE)
+            # For source builds, we know the structure and create targets that will be available after build
+            set(${_component}_INCLUDE_DIRS "${PROJECT_BINARY_DIR}/_deps/ffmpeg-build/include")
+            if (${CMAKE_SYSTEM_NAME} STREQUAL "Windows")
+                set(${_component}_LIBRARY "${PROJECT_BINARY_DIR}/_deps/ffmpeg-build/lib/lib${_component}.dll.a")
+            else()
+                set(${_component}_LIBRARY "${PROJECT_BINARY_DIR}/_deps/ffmpeg-build/lib/lib${_component}.a")
+            endif()
+            
             set(ffmpeg_${_component}_FOUND TRUE)
             set(ffmpeg_LINK_LIBRARIES ${ffmpeg_LINK_LIBRARIES} "${${_component}_LIBRARY}")
             list(APPEND ffmpeg_INCLUDE_DIRS ${${_component}_INCLUDE_DIRS}) 
 
             if (NOT TARGET ffmpeg::${_component})
-                add_library(ffmpeg_${_component} STATIC IMPORTED)
-                set_target_properties(ffmpeg_${_component} PROPERTIES
-                    INTERFACE_INCLUDE_DIRECTORIES "${${_component}_INCLUDE_DIRS}"
-                    IMPORTED_LOCATION "${${_component}_LIBRARY}"
-                )
+                if (${CMAKE_SYSTEM_NAME} STREQUAL "Windows")
+                    # Windows builds from BtbN are shared libraries
+                    add_library(ffmpeg_${_component} SHARED IMPORTED)
+                    set_target_properties(ffmpeg_${_component} PROPERTIES
+                        INTERFACE_INCLUDE_DIRECTORIES "${${_component}_INCLUDE_DIRS}"
+                        IMPORTED_IMPLIB "${${_component}_LIBRARY}"
+                    )
+                else()
+                    # Linux builds are static
+                    add_library(ffmpeg_${_component} STATIC IMPORTED)
+                    set_target_properties(ffmpeg_${_component} PROPERTIES
+                        INTERFACE_INCLUDE_DIRECTORIES "${${_component}_INCLUDE_DIRS}"
+                        IMPORTED_LOCATION "${${_component}_LIBRARY}"
+                    )
+                endif()
                 add_library(ffmpeg::${_component} ALIAS ffmpeg_${_component})
+                
+                # Add dependency on the extraction target if building from source
+                if(TARGET extract_ffmpeg)
+                    add_dependencies(ffmpeg_${_component} extract_ffmpeg)
+                endif()
+            endif()
+        else()
+            # Normal find logic for pre-built binaries
+            find_path(${_component}_INCLUDE_DIRS "${_header}" PATH_SUFFIXES ffmpeg)
+            
+            if (${CMAKE_SYSTEM_NAME} STREQUAL "Windows")
+                set(CMAKE_FIND_LIBRARY_PREFIXES "lib")
+                set(CMAKE_FIND_LIBRARY_SUFFIXES ".dll.a")
+                find_library(${_component}_LIBRARY NAMES "${CMAKE_FIND_LIBRARY_PREFIXES}${_component}${CMAKE_FIND_LIBRARY_SUFFIXES}" PATH_SUFFIXES ffmpeg)
+            else()
+                find_library(${_component}_LIBRARY NAMES "${_component}" PATH_SUFFIXES ffmpeg)            
+            endif()
+
+            if (${_component}_LIBRARY AND ${_component}_INCLUDE_DIRS)
+                set(ffmpeg_${_component}_FOUND TRUE)
+                set(ffmpeg_LINK_LIBRARIES ${ffmpeg_LINK_LIBRARIES} "${${_component}_LIBRARY}")
+                list(APPEND ffmpeg_INCLUDE_DIRS ${${_component}_INCLUDE_DIRS}) 
+
+                if (NOT TARGET ffmpeg::${_component})
+                    add_library(ffmpeg_${_component} STATIC IMPORTED)
+                    set_target_properties(ffmpeg_${_component} PROPERTIES
+                        INTERFACE_INCLUDE_DIRECTORIES "${${_component}_INCLUDE_DIRS}"
+                        IMPORTED_LOCATION "${${_component}_LIBRARY}"
+                    )
+                    add_library(ffmpeg::${_component} ALIAS ffmpeg_${_component})
+                endif()
             endif()
         endif()
       

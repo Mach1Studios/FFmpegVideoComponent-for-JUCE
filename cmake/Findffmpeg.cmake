@@ -147,6 +147,8 @@ else()
     set(BUILDING_FROM_SOURCE FALSE)
     if(${CMAKE_SYSTEM_NAME} STREQUAL "Windows" AND ${CMAKE_SYSTEM_PROCESSOR} STREQUAL "AMD64" AND DOCKER_EXECUTABLE AND BASH_EXECUTABLE)
         set(BUILDING_FROM_SOURCE TRUE)
+        set(ffmpeg_VERSION "5.1")
+        set(ffmpeg_VERSION_STRING "5.1.6")
         message(STATUS "ffmpeg package will be built from source (5.1) - BtbN/FFmpeg-Builds")
     endif()
 
@@ -238,7 +240,14 @@ else()
 
     # Handle findings
     list(LENGTH ffmpeg_FIND_COMPONENTS ffmpeg_COMPONENTS_COUNT)
-    find_package_handle_standard_args(ffmpeg REQUIRED_VARS ffmpeg_COMPONENTS_COUNT HANDLE_COMPONENTS)
+    if(BUILDING_FROM_SOURCE)
+        find_package_handle_standard_args(ffmpeg 
+            REQUIRED_VARS ffmpeg_COMPONENTS_COUNT 
+            VERSION_VAR ffmpeg_VERSION_STRING
+            HANDLE_COMPONENTS)
+    else()
+        find_package_handle_standard_args(ffmpeg REQUIRED_VARS ffmpeg_COMPONENTS_COUNT HANDLE_COMPONENTS)
+    endif()
 
     # Publish targets if succeeded to find the ffmpeg package and the requested components
     if (ffmpeg_FOUND AND NOT TARGET ffmpeg::ffmpeg)
@@ -248,6 +257,18 @@ else()
             INTERFACE_LINK_LIBRARIES "${ffmpeg_LINK_LIBRARIES}"
         )
         add_library(ffmpeg::ffmpeg ALIAS ffmpeg)
+        
+        # Add build dependency if building from source
+        if(BUILDING_FROM_SOURCE AND TARGET extract_ffmpeg)
+            add_dependencies(ffmpeg extract_ffmpeg)
+        endif()
+    endif()
+    
+    # Override the standard message for source builds
+    if(BUILDING_FROM_SOURCE AND ffmpeg_FOUND)
+        find_package_message("${CMAKE_FIND_PACKAGE_NAME}" 
+                              "ffmpeg package will be built from source"
+                              "ffmpeg version 5.1.6 (BtbN/FFmpeg-Builds)")
     endif()
 
 endif()

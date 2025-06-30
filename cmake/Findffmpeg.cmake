@@ -12,298 +12,261 @@ if (CMAKE_VERSION VERSION_GREATER_EQUAL "3.24.0")
     cmake_policy(SET CMP0135 NEW)
 endif()
 
-if (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
-    set_package_properties("${CMAKE_FIND_PACKAGE_NAME}" 
-                            PROPERTIES 
-                                URL "https://www.ffmpeg.org/"
-                                DESCRIPTION "Audio and video codecs")
-    FetchContent_Declare(ffmpeg 
-                          GIT_REPOSITORY "https://github.com/mach1studios/ffmpegBuild.git"
-                          GIT_TAG origin/feature/5-1-6)
+# Prevent CMake from automatically detecting and overriding our versions
+set(CMAKE_FIND_PACKAGE_QUIET TRUE)
 
-elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Windows" AND ${CMAKE_SYSTEM_PROCESSOR} STREQUAL "AMD64")
+# Set target FFmpeg version explicitly
+set(ffmpeg_VERSION_MAJOR 5)
+set(ffmpeg_VERSION_MINOR 1)  
+set(ffmpeg_VERSION_PATCH 6)
+set(ffmpeg_VERSION "${ffmpeg_VERSION_MAJOR}.${ffmpeg_VERSION_MINOR}.${ffmpeg_VERSION_PATCH}")
+
+# Clear any cached version variables to prevent confusion
+unset(ffmpeg_VERSION CACHE)
+unset(ffmpeg_VERSION_MAJOR CACHE)  
+unset(ffmpeg_VERSION_MINOR CACHE)
+unset(ffmpeg_VERSION_PATCH CACHE)
+
+# Platform-specific configurations
+if(WIN32)
+    set(FFMPEG_URL "https://github.com/BtbN/FFmpeg-Builds.git")
+    set(FFMPEG_EXTRACT_DIR "${CMAKE_CURRENT_BINARY_DIR}/ffmpeg-extract")
+    set(FFMPEG_BUILD_DIR "${CMAKE_CURRENT_BINARY_DIR}/FFmpeg-Builds")
     
-    # Build FFmpeg 5.1 from source using BtbN/FFmpeg-Builds
-    message(STATUS "Building FFmpeg 5.1 from source for Windows...")
-    
-    # Check for required tools (Docker and bash)
-    find_program(DOCKER_EXECUTABLE docker)
-    find_program(BASH_EXECUTABLE bash)
-    
-    # Test if bash actually works with Docker builds
-    if(BASH_EXECUTABLE)
-        execute_process(
-            COMMAND "${BASH_EXECUTABLE}" -c "echo test"
-            OUTPUT_VARIABLE BASH_TEST_OUTPUT
-            ERROR_VARIABLE BASH_TEST_ERROR
-            RESULT_VARIABLE BASH_TEST_RESULT
-            OUTPUT_STRIP_TRAILING_WHITESPACE
-        )
-        
-        if(NOT BASH_TEST_RESULT EQUAL 0)
-            message(WARNING "Bash test basic command failed: ${BASH_TEST_ERROR}")
-            message(STATUS "Bash at ${BASH_EXECUTABLE} is not working properly")
-            unset(BASH_EXECUTABLE)
-            unset(BASH_EXECUTABLE CACHE)
-        else()
-            message(STATUS "Found working bash at: ${BASH_EXECUTABLE}")
-        endif()
-    endif()
-    
-    if(NOT DOCKER_EXECUTABLE OR NOT BASH_EXECUTABLE)
-        message(WARNING "Docker and/or bash not found. Falling back to pre-built binaries.")
-        if(NOT DOCKER_EXECUTABLE)
-            message(STATUS "Docker not found. Please install Docker Desktop from https://www.docker.com/products/docker-desktop")
-        endif()
-        if(NOT BASH_EXECUTABLE)
-            message(STATUS "Bash not found or not working. Please ensure bash is available in PATH.")
-            message(STATUS "Options: Git for Windows, Windows Terminal with bash, WSL, or MSYS2")
-        endif()
-        
-        # Fallback to pre-built binaries
-        set(BUILT_ffmpeg_RELEASE "ffmpeg-master-latest-win64-gpl-shared.zip")
-        
-        if (NOT "${PROJECT_BINARY_DIR}/_deps/ffmpeg-build" IN_LIST "${CMAKE_PREFIX_PATH}")
-            list(APPEND CMAKE_PREFIX_PATH "${PROJECT_BINARY_DIR}/_deps/ffmpeg-build")
-        endif()
-        message(STATUS "ffmpeg download path: ${PROJECT_BINARY_DIR}/_deps/ffmpeg-build")
-
-        FetchContent_Declare(ffmpeg
-            URL  "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/${BUILT_ffmpeg_RELEASE}"
-            SOURCE_DIR "${PROJECT_BINARY_DIR}/_deps/ffmpeg-build"  
-        )
-    else()
-        # Build from source using BtbN/FFmpeg-Builds
-        message(STATUS "Docker and bash found. Building FFmpeg 5.1 from source...")
-        
-        # Set up build directory
-        set(FFMPEG_BUILD_DIR "${PROJECT_BINARY_DIR}/_deps/ffmpeg-builds")
-        set(FFMPEG_OUTPUT_DIR "${PROJECT_BINARY_DIR}/_deps/ffmpeg-build")
-        
-        if (NOT "${FFMPEG_OUTPUT_DIR}" IN_LIST "${CMAKE_PREFIX_PATH}")
-            list(APPEND CMAKE_PREFIX_PATH "${FFMPEG_OUTPUT_DIR}")
-        endif()
-        
-        # Clone the BtbN/FFmpeg-Builds repository
-        FetchContent_Declare(ffmpeg_builds
-            GIT_REPOSITORY "https://github.com/BtbN/FFmpeg-Builds.git"
-            GIT_TAG "master"
-            SOURCE_DIR "${FFMPEG_BUILD_DIR}"
-            CONFIGURE_COMMAND ""
-            BUILD_COMMAND ""
-        )
-        
-        FetchContent_MakeAvailable(ffmpeg_builds)
-        
-        message(STATUS "Building FFmpeg 5.1 from source using: ${BASH_EXECUTABLE}")
-        
-        # Custom target to build FFmpeg 5.1
-        add_custom_target(build_ffmpeg
-            COMMAND "${BASH_EXECUTABLE}" -c "cd '${FFMPEG_BUILD_DIR}' && ./build.sh win64 gpl 5.1"
-            WORKING_DIRECTORY ${FFMPEG_BUILD_DIR}
-            COMMENT "Building FFmpeg 5.1 for Windows x64 with GPL..."
-        )
-        
-        # Extract the built artifacts
-        add_custom_target(extract_ffmpeg
-            COMMAND ${CMAKE_COMMAND} -E make_directory ${FFMPEG_OUTPUT_DIR}
-            COMMAND ${CMAKE_COMMAND} -E chdir ${FFMPEG_BUILD_DIR}/artifacts 
-                ${CMAKE_COMMAND} -E tar xf ffmpeg-5.1-win64-gpl.zip
-            COMMAND ${CMAKE_COMMAND} -E copy_directory 
-                ${FFMPEG_BUILD_DIR}/artifacts/ffmpeg-5.1-win64-gpl 
-                ${FFMPEG_OUTPUT_DIR}
-            DEPENDS build_ffmpeg
-            COMMENT "Extracting FFmpeg build artifacts..."
-        )
-        
-        # Create a dummy target for FetchContent compatibility
-        add_custom_target(ffmpeg_dummy DEPENDS extract_ffmpeg)
-        
-        # Set ffmpeg as built
-        set(ffmpeg_POPULATED TRUE)
-        set(ffmpeg_SOURCE_DIR ${FFMPEG_BUILD_DIR})
-        set(ffmpeg_BINARY_DIR ${FFMPEG_OUTPUT_DIR})
-    endif()
-
-elseif (${CMAKE_SYSTEM_NAME} STREQUAL "Linux")
-
-    # TODO: Use the FFMPEGBUILD concept for mac here too
-    
-    if(${CMAKE_SYSTEM_PROCESSOR} STREQUAL "x86_64" OR ${CMAKE_SYSTEM_PROCESSOR} STREQUAL "amd64")
-        set(BUILT_ffmpeg_RELEASE "ffmpeg-master-latest-linux64-gpl.tar.xz")
-    elseif(${CMAKE_SYSTEM_PROCESSOR} STREQUAL aarch64)
-        set(BUILT_ffmpeg_RELEASE "ffmpeg-master-latest-linuxarm64-gpl.tar.xz")
-    endif()
-
-    if(NOT BUILT_ffmpeg_RELEASE)
-        message(FATAL_ERROR "Platform ${CMAKE_SYSTEM_PROCESSOR} on system ${CMAKE_SYSTEM_NAME} is not supported!")
-    endif()
-
-    if (NOT "${PROJECT_BINARY_DIR}/_deps/ffmpeg-build" IN_LIST "${CMAKE_PREFIX_PATH}")
-        list(APPEND CMAKE_PREFIX_PATH "${PROJECT_BINARY_DIR}/_deps/ffmpeg-build")
-    endif()
-
-    FetchContent_Declare(ffmpeg
-        URL  "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/${BUILT_ffmpeg_RELEASE}"
-        SOURCE_DIR "${PROJECT_BINARY_DIR}/_deps/ffmpeg-build"  
-    )
-
-endif()
-
-# Handle FetchContent_MakeAvailable for different cases
-if(${CMAKE_SYSTEM_NAME} STREQUAL "Windows" AND ${CMAKE_SYSTEM_PROCESSOR} STREQUAL "AMD64")
-    # For Windows, we handle this conditionally above
-    if(NOT DOCKER_EXECUTABLE OR NOT BASH_EXECUTABLE)
-        FetchContent_MakeAvailable(ffmpeg)
-    endif()
-    # For source builds, dependencies are handled by custom targets
-else()
-    FetchContent_MakeAvailable(ffmpeg)
-endif()
-
-if (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
-
-    find_package_message("${CMAKE_FIND_PACKAGE_NAME}" 
-                          "ffmpeg package found -- Sources downloaded"
-                          "ffmpeg (GitHub)")
-
-    set(${CMAKE_FIND_PACKAGE_NAME}_FOUND TRUE)
-
-else()
-
-    # Check if we're building from source on Windows
+    # Check if we need to build from source
     set(BUILDING_FROM_SOURCE FALSE)
-    if(${CMAKE_SYSTEM_NAME} STREQUAL "Windows" AND ${CMAKE_SYSTEM_PROCESSOR} STREQUAL "AMD64" AND DOCKER_EXECUTABLE AND BASH_EXECUTABLE)
+    
+    # Check if FFmpeg is already built
+    if(NOT EXISTS "${FFMPEG_EXTRACT_DIR}/bin/ffmpeg.exe")
         set(BUILDING_FROM_SOURCE TRUE)
         
-        # Clear any cached version variables that might interfere
-        unset(ffmpeg_VERSION CACHE)
-        unset(ffmpeg_VERSION_STRING CACHE)
-        unset(FFMPEG_VERSION CACHE)
-        unset(FFMPEG_VERSION_STRING CACHE)
+        # Build FFmpeg 5.1 from source using BtbN/FFmpeg-Builds
+        find_program(DOCKER_EXECUTABLE docker REQUIRED)
+        find_program(BASH_EXECUTABLE bash REQUIRED)
+        find_program(UNZIP_EXECUTABLE unzip REQUIRED)
         
-        # Set our specific version
-        set(ffmpeg_VERSION "5.1.6")
-        set(ffmpeg_VERSION_STRING "5.1.6")
-        set(ffmpeg_VERSION_MAJOR "5")
-        set(ffmpeg_VERSION_MINOR "1")
-        set(ffmpeg_VERSION_PATCH "6")
-        
-        message(STATUS "ffmpeg package will be built from source (5.1) - BtbN/FFmpeg-Builds")
-    endif()
-
-    macro(find_component _component _header)
-        if(BUILDING_FROM_SOURCE)
-            # For source builds, we know the structure and create targets that will be available after build
-            set(${_component}_INCLUDE_DIRS "${PROJECT_BINARY_DIR}/_deps/ffmpeg-build/include")
-            if (${CMAKE_SYSTEM_NAME} STREQUAL "Windows")
-                set(${_component}_LIBRARY "${PROJECT_BINARY_DIR}/_deps/ffmpeg-build/lib/lib${_component}.dll.a")
-            else()
-                set(${_component}_LIBRARY "${PROJECT_BINARY_DIR}/_deps/ffmpeg-build/lib/lib${_component}.a")
-            endif()
+        if(DOCKER_EXECUTABLE AND BASH_EXECUTABLE AND UNZIP_EXECUTABLE)
+            message(STATUS "Building FFmpeg 5.1 from source using Docker...")
             
-            set(ffmpeg_${_component}_FOUND TRUE)
-            set(ffmpeg_LINK_LIBRARIES ${ffmpeg_LINK_LIBRARIES} "${${_component}_LIBRARY}")
-            list(APPEND ffmpeg_INCLUDE_DIRS ${${_component}_INCLUDE_DIRS}) 
-
-            if (NOT TARGET ffmpeg::${_component})
-                if (${CMAKE_SYSTEM_NAME} STREQUAL "Windows")
-                    # Windows builds from BtbN are shared libraries
-                    add_library(ffmpeg_${_component} SHARED IMPORTED)
-                    set_target_properties(ffmpeg_${_component} PROPERTIES
-                        INTERFACE_INCLUDE_DIRECTORIES "${${_component}_INCLUDE_DIRS}"
-                        IMPORTED_IMPLIB "${${_component}_LIBRARY}"
-                    )
-                else()
-                    # Linux builds are static
-                    add_library(ffmpeg_${_component} STATIC IMPORTED)
-                    set_target_properties(ffmpeg_${_component} PROPERTIES
-                        INTERFACE_INCLUDE_DIRECTORIES "${${_component}_INCLUDE_DIRS}"
-                        IMPORTED_LOCATION "${${_component}_LIBRARY}"
-                    )
-                endif()
-                add_library(ffmpeg::${_component} ALIAS ffmpeg_${_component})
-                
-                # Add dependency on the extraction target if building from source
-                if(TARGET extract_ffmpeg)
-                    add_dependencies(ffmpeg_${_component} extract_ffmpeg)
-                endif()
-            endif()
+            # Custom target to build FFmpeg
+            add_custom_target(extract_ffmpeg
+                COMMENT "Building FFmpeg 5.1 from source..."
+                COMMAND ${CMAKE_COMMAND} -E remove_directory "${FFMPEG_BUILD_DIR}"
+                COMMAND ${CMAKE_COMMAND} -E remove_directory "${FFMPEG_EXTRACT_DIR}"
+                COMMAND git clone --depth 1 "${FFMPEG_URL}" "${FFMPEG_BUILD_DIR}"
+                COMMAND ${BASH_EXECUTABLE} -c "cd '${FFMPEG_BUILD_DIR}' && ./build.sh win64 gpl 5.1"
+                COMMAND ${CMAKE_COMMAND} -E make_directory "${FFMPEG_EXTRACT_DIR}"
+                COMMAND ${BASH_EXECUTABLE} -c "cd '${FFMPEG_BUILD_DIR}/artifacts' && unzip -q ffmpeg-*-win64-gpl-*.zip && cp -r ffmpeg-*-win64-gpl-*/* '${FFMPEG_EXTRACT_DIR}/'"
+                WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}"
+            )
         else()
-            # Normal find logic for pre-built binaries
-            find_path(${_component}_INCLUDE_DIRS "${_header}" PATH_SUFFIXES ffmpeg)
-            
-            if (${CMAKE_SYSTEM_NAME} STREQUAL "Windows")
-                set(CMAKE_FIND_LIBRARY_PREFIXES "lib")
-                set(CMAKE_FIND_LIBRARY_SUFFIXES ".dll.a")
-                find_library(${_component}_LIBRARY NAMES "${CMAKE_FIND_LIBRARY_PREFIXES}${_component}${CMAKE_FIND_LIBRARY_SUFFIXES}" PATH_SUFFIXES ffmpeg)
-            else()
-                find_library(${_component}_LIBRARY NAMES "${_component}" PATH_SUFFIXES ffmpeg)            
-            endif()
-
-            if (${_component}_LIBRARY AND ${_component}_INCLUDE_DIRS)
-                set(ffmpeg_${_component}_FOUND TRUE)
-                set(ffmpeg_LINK_LIBRARIES ${ffmpeg_LINK_LIBRARIES} "${${_component}_LIBRARY}")
-                list(APPEND ffmpeg_INCLUDE_DIRS ${${_component}_INCLUDE_DIRS}) 
-
-                if (NOT TARGET ffmpeg::${_component})
-                    add_library(ffmpeg_${_component} STATIC IMPORTED)
-                    set_target_properties(ffmpeg_${_component} PROPERTIES
-                        INTERFACE_INCLUDE_DIRECTORIES "${${_component}_INCLUDE_DIRS}"
-                        IMPORTED_LOCATION "${${_component}_LIBRARY}"
-                    )
-                    add_library(ffmpeg::${_component} ALIAS ffmpeg_${_component})
-                endif()
-            endif()
-        endif()
-      
-        mark_as_advanced(${_component}_INCLUDE_DIRS)
-        mark_as_advanced(${_component}_LIBRARY)
-    endmacro()
-
-    # The default components
-    if (NOT ffmpeg_FIND_COMPONENTS)
-        set(ffmpeg_FIND_COMPONENTS avcodec avfilter avformat avdevice avutil swresample swscale)
-    endif ()
-
-    # Traverse the user-selected components of the package and find them
-    set(ffmpeg_INCLUDE_DIRS "${PROJECT_BINARY_DIR}/_deps/ffmpeg-build/include")
-    set(ffmpeg_LINK_LIBRARIES)
-
-    foreach(_component ${ffmpeg_FIND_COMPONENTS})
-        find_component(${_component} lib${_component}/${_component}.h)
-    endforeach()
-    mark_as_advanced(ffmpeg_INCLUDE_DIRS)
-    mark_as_advanced(ffmpeg_LINK_LIBRARIES)
-
-    #message(STATUS "ffmpeg lib paths: ${ffmpeg_LINK_LIBRARIES}")
-
-    # Handle findings
-    list(LENGTH ffmpeg_FIND_COMPONENTS ffmpeg_COMPONENTS_COUNT)
-    if(BUILDING_FROM_SOURCE)
-        # For source builds, bypass standard version detection completely
-        set(ffmpeg_FOUND TRUE)
-        message(STATUS "Found ffmpeg components: ${ffmpeg_FIND_COMPONENTS}")
-        message(STATUS "ffmpeg version: ${ffmpeg_VERSION_STRING} (building from source)")
-    else()
-        find_package_handle_standard_args(ffmpeg REQUIRED_VARS ffmpeg_COMPONENTS_COUNT HANDLE_COMPONENTS)
-    endif()
-
-    # Publish targets if succeeded to find the ffmpeg package and the requested components
-    if (ffmpeg_FOUND AND NOT TARGET ffmpeg::ffmpeg)
-        add_library(ffmpeg INTERFACE)
-        set_target_properties(ffmpeg PROPERTIES
-            INTERFACE_INCLUDE_DIRECTORIES "${ffmpeg_INCLUDE_DIRS}"
-            INTERFACE_LINK_LIBRARIES "${ffmpeg_LINK_LIBRARIES}"
-        )
-        add_library(ffmpeg::ffmpeg ALIAS ffmpeg)
-        
-        # Add build dependency if building from source
-        if(BUILDING_FROM_SOURCE AND TARGET extract_ffmpeg)
-            add_dependencies(ffmpeg extract_ffmpeg)
+            message(FATAL_ERROR "Docker, bash, and unzip are required to build FFmpeg from source")
         endif()
     endif()
     
-
-
+    # Set FFmpeg paths
+    set(FFMPEG_ROOT "${FFMPEG_EXTRACT_DIR}")
+    
+    # Define the components we need
+    set(FFMPEG_COMPONENTS avcodec avfilter avformat avdevice avutil swresample swscale)
+    
+    # Create imported targets for each component  
+    foreach(component IN LISTS FFMPEG_COMPONENTS)
+        if(NOT TARGET ffmpeg::${component})
+            add_library(ffmpeg::${component} SHARED IMPORTED)
+            
+            # Set the DLL and import library paths
+            set_target_properties(ffmpeg::${component} PROPERTIES
+                IMPORTED_LOCATION "${FFMPEG_ROOT}/bin/${component}.dll"
+                IMPORTED_IMPLIB "${FFMPEG_ROOT}/lib/${component}.dll.a"
+                INTERFACE_INCLUDE_DIRECTORIES "${FFMPEG_ROOT}/include"
+            )
+            
+            # Add dependency on extract_ffmpeg if building from source
+            if(BUILDING_FROM_SOURCE)
+                add_dependencies(ffmpeg::${component} extract_ffmpeg)
+            endif()
+        endif()
+    endforeach()
+    
+    # Create convenience target
+    if(NOT TARGET ffmpeg::ffmpeg)
+        add_library(ffmpeg::ffmpeg INTERFACE IMPORTED)
+        
+        # Build the component targets list
+        set(ffmpeg_components_targets "")
+        foreach(component IN LISTS FFMPEG_COMPONENTS)
+            if(TARGET ffmpeg::${component})
+                list(APPEND ffmpeg_components_targets ffmpeg::${component})
+            endif()
+        endforeach()
+        
+        set_target_properties(ffmpeg::ffmpeg PROPERTIES
+            INTERFACE_LINK_LIBRARIES "${ffmpeg_components_targets}"
+        )
+        
+        if(BUILDING_FROM_SOURCE)
+            add_dependencies(ffmpeg::ffmpeg extract_ffmpeg)
+        endif()
+    endif()
+    
+    # Set component variables
+    foreach(component IN LISTS FFMPEG_COMPONENTS)
+        string(TOUPPER ${component} component_upper)
+        set(ffmpeg_${component}_FOUND TRUE)
+        set(PC_ffmpeg_${component_upper}_VERSION "${ffmpeg_VERSION}")
+    endforeach()
+    
+elseif(UNIX AND NOT APPLE)
+    # Linux configuration
+    set(FFMPEG_URL "https://github.com/BtbN/FFmpeg-Builds.git")
+    set(FFMPEG_EXTRACT_DIR "${CMAKE_CURRENT_BINARY_DIR}/ffmpeg-extract")
+    set(FFMPEG_BUILD_DIR "${CMAKE_CURRENT_BINARY_DIR}/FFmpeg-Builds")
+    
+    set(BUILDING_FROM_SOURCE FALSE)
+    
+    if(NOT EXISTS "${FFMPEG_EXTRACT_DIR}/lib/libavcodec.a")
+        set(BUILDING_FROM_SOURCE TRUE)
+        
+        find_program(DOCKER_EXECUTABLE docker REQUIRED)
+        find_program(BASH_EXECUTABLE bash REQUIRED)
+        
+        if(DOCKER_EXECUTABLE AND BASH_EXECUTABLE)
+            message(STATUS "Building FFmpeg 5.1 from source using Docker...")
+            
+            add_custom_target(extract_ffmpeg
+                COMMENT "Building FFmpeg 5.1 from source..."
+                COMMAND ${CMAKE_COMMAND} -E remove_directory "${FFMPEG_BUILD_DIR}"
+                COMMAND ${CMAKE_COMMAND} -E remove_directory "${FFMPEG_EXTRACT_DIR}"
+                COMMAND git clone --depth 1 "${FFMPEG_URL}" "${FFMPEG_BUILD_DIR}"
+                COMMAND ${BASH_EXECUTABLE} -c "cd '${FFMPEG_BUILD_DIR}' && ./build.sh linux64 gpl 5.1"
+                COMMAND ${CMAKE_COMMAND} -E make_directory "${FFMPEG_EXTRACT_DIR}"
+                COMMAND ${BASH_EXECUTABLE} -c "cd '${FFMPEG_BUILD_DIR}/artifacts' && tar -xJf ffmpeg-*-linux64-gpl-*.tar.xz --strip-components=1 -C '${FFMPEG_EXTRACT_DIR}'"
+                WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}"
+            )
+        endif()
+    endif()
+    
+    set(FFMPEG_ROOT "${FFMPEG_EXTRACT_DIR}")
+    set(FFMPEG_COMPONENTS avcodec avfilter avformat avdevice avutil swresample swscale)
+    
+    # Create static library targets for Linux
+    foreach(component IN LISTS FFMPEG_COMPONENTS)
+        if(NOT TARGET ffmpeg::${component})
+            add_library(ffmpeg::${component} STATIC IMPORTED)
+            set_target_properties(ffmpeg::${component} PROPERTIES
+                IMPORTED_LOCATION "${FFMPEG_ROOT}/lib/lib${component}.a"
+                INTERFACE_INCLUDE_DIRECTORIES "${FFMPEG_ROOT}/include"
+            )
+            
+            if(BUILDING_FROM_SOURCE)
+                add_dependencies(ffmpeg::${component} extract_ffmpeg)
+            endif()
+        endif()
+    endforeach()
+    
+    if(NOT TARGET ffmpeg::ffmpeg)
+        add_library(ffmpeg::ffmpeg INTERFACE IMPORTED)
+        
+        # Build the component targets list
+        set(ffmpeg_components_targets "")
+        foreach(component IN LISTS FFMPEG_COMPONENTS)
+            if(TARGET ffmpeg::${component})
+                list(APPEND ffmpeg_components_targets ffmpeg::${component})
+            endif()
+        endforeach()
+        
+        set_target_properties(ffmpeg::ffmpeg PROPERTIES
+            INTERFACE_LINK_LIBRARIES "${ffmpeg_components_targets}"
+        )
+        
+        if(BUILDING_FROM_SOURCE)
+            add_dependencies(ffmpeg::ffmpeg extract_ffmpeg)  
+        endif()
+    endif()
+    
+    foreach(component IN LISTS FFMPEG_COMPONENTS)
+        string(TOUPPER ${component} component_upper)
+        set(ffmpeg_${component}_FOUND TRUE)  
+        set(PC_ffmpeg_${component_upper}_VERSION "${ffmpeg_VERSION}")
+    endforeach()
+    
+else()
+    # macOS - try to find system FFmpeg or use Homebrew
+    find_package(PkgConfig QUIET)
+    
+    if(PkgConfig_FOUND)
+        set(FFMPEG_COMPONENTS avcodec avfilter avformat avdevice avutil swresample swscale)
+        
+        foreach(component IN LISTS FFMPEG_COMPONENTS)
+            pkg_check_modules(PC_ffmpeg_${component} lib${component})
+            
+            if(PC_ffmpeg_${component}_FOUND)
+                if(NOT TARGET ffmpeg::${component})
+                    add_library(ffmpeg::${component} INTERFACE IMPORTED)
+                    set_target_properties(ffmpeg::${component} PROPERTIES
+                        INTERFACE_INCLUDE_DIRECTORIES "${PC_ffmpeg_${component}_INCLUDE_DIRS}"
+                        INTERFACE_LINK_LIBRARIES "${PC_ffmpeg_${component}_LINK_LIBRARIES}"
+                        INTERFACE_LINK_DIRECTORIES "${PC_ffmpeg_${component}_LIBRARY_DIRS}"
+                        INTERFACE_COMPILE_OPTIONS "${PC_ffmpeg_${component}_CFLAGS_OTHER}"
+                    )
+                endif()
+                set(ffmpeg_${component}_FOUND TRUE)
+            endif()
+        endforeach()
+        
+        if(NOT TARGET ffmpeg::ffmpeg)
+            add_library(ffmpeg::ffmpeg INTERFACE IMPORTED)
+            set(ffmpeg_components_targets "")
+            foreach(component IN LISTS FFMPEG_COMPONENTS)
+                if(TARGET ffmpeg::${component})
+                    list(APPEND ffmpeg_components_targets ffmpeg::${component})
+                endif()
+            endforeach()
+            if(ffmpeg_components_targets)
+                set_target_properties(ffmpeg::ffmpeg PROPERTIES
+                    INTERFACE_LINK_LIBRARIES "${ffmpeg_components_targets}"
+                )
+            endif()
+        endif()
+    endif()
 endif()
+
+# Final component checking
+set(FFMPEG_COMPONENTS avcodec avfilter avformat avdevice avutil swresample swscale) 
+foreach(component IN LISTS FFMPEG_COMPONENTS)
+    if(TARGET ffmpeg::${component})
+        set(ffmpeg_${component}_FOUND TRUE)
+    endif()
+endforeach()
+
+# Generate component list for find_package_handle_standard_args
+set(ffmpeg_components_list "")
+foreach(component IN LISTS FFMPEG_COMPONENTS)
+    if(ffmpeg_${component}_FOUND)
+        list(APPEND ffmpeg_components_list ${component})
+    endif()
+endforeach()
+
+# Custom status messages instead of standard CMake detection
+if(BUILDING_FROM_SOURCE)
+    message(STATUS "Found ffmpeg: Building 5.1.6 from source (found components: ${ffmpeg_components_list})")
+else()
+    # Use standard find_package_handle_standard_args for system installs
+    include(FindPackageHandleStandardArgs)
+    find_package_handle_standard_args(ffmpeg
+        FOUND_VAR ffmpeg_FOUND
+        REQUIRED_VARS ffmpeg_components_list
+        VERSION_VAR ffmpeg_VERSION
+        HANDLE_COMPONENTS
+    )
+endif()
+
+# Ensure we have the components we need
+set(ffmpeg_FOUND TRUE)
+foreach(component IN LISTS FFMPEG_COMPONENTS)
+    if(NOT ffmpeg_${component}_FOUND)
+        set(ffmpeg_FOUND FALSE)
+        break()
+    endif()
+endforeach()
